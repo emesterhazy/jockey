@@ -7,7 +7,7 @@ import (
 
 // Helper function to compare result returned by ParseURL
 func doTestParseURL(t *testing.T, testCase *urlCase) {
-	got, err := parseURL(testCase.rawURL)
+	got, err := fuzzyParseURL(testCase.rawURL)
 	if err != nil && !testCase.expectError {
 		t.Errorf("Parsing %s returned error%s\n",
 			err.Error(), testCase.rawURL)
@@ -17,7 +17,7 @@ func doTestParseURL(t *testing.T, testCase *urlCase) {
 	} else if err == nil && testCase.expectError {
 		t.Errorf("Expected error parsing %s and got none\n", testCase.rawURL)
 	} else if err != nil && got == nil {
-		t.Errorf("parseURL returned a nil pointer without setting error for url %s\n",
+		t.Errorf("fuzzyParseURL returned a nil pointer without setting error for url %s\n",
 			testCase.rawURL)
 	}
 
@@ -47,6 +47,7 @@ func TestParse(t *testing.T) {
 		{"www.cloudflare.com:8000", url.URL{Scheme: "http", Host: "www.cloudflare.com:8000"}, false},
 		{"wss://google.com", url.URL{}, true},
 		{"http://www.cloudflare.com:80/index.html", url.URL{Scheme: "http", Host: "www.cloudflare.com:80"}, false},
+		{"www.google.com:badport", url.URL{}, true},
 	}
 	for _, c := range cases {
 		doTestParseURL(t, &c)
