@@ -59,7 +59,7 @@ func main() {
 		os.Exit(0)
 	} else {
 		results := doProfile(*profileOpt, parsed.Hostname(), parsed.Path, port, nil)
-		fmt.Print(*results)
+		fmt.Print(results.String())
 		os.Exit(0)
 	}
 }

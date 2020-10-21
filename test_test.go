@@ -33,6 +33,7 @@ func doTestParseURL(t *testing.T, testCase *urlCase) {
 	}
 }
 
+// URL test case for parseFuzzyURL
 type urlCase struct {
 	rawURL   string
 	expected url.URL
@@ -56,6 +57,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// Test case for the partition function in quickSelect
 func TestPartition(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	mx := 10_000

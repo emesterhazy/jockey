@@ -14,7 +14,7 @@ type profileResults struct {
 	requests              uint
 	fastest               time.Duration
 	slowest               time.Duration
-	meanTime              float64
+	meanTime              float64       // Float to minimize precision loss since we update on each request
 	medianTime            time.Duration // Avoid re-calculating if the median is up-to-date
 	medianCurrent         bool
 	smallestResponseBytes uint
@@ -26,18 +26,19 @@ type profileResults struct {
 func (pr *profileResults) init(numExpectedRequests int) {
 	pr.statusCodeCounts = make(map[int]int)
 	pr.requestTimes = make([]time.Duration, 0, numExpectedRequests)
+	pr.fastest = 1<<63 - 1
 }
 
 func (pr *profileResults) String() string {
 	var str strings.Builder
 	writer := tabwriter.NewWriter(&str, 0, 0, 4, ' ', 0)
-	fmt.Fprintf(writer, "Requests:\t%v\n", pr.requests)
-	fmt.Fprintf(writer, "Fastest request:\t%v ms\n", pr.fastest*time.Millisecond)
-	fmt.Fprintf(writer, "Slowest request:\t%v ms\n", pr.slowest*time.Millisecond)
-	fmt.Fprintf(writer, "Mean time:\t%v ms\n", time.Duration(pr.meanTime)*time.Millisecond)
-	fmt.Fprintf(writer, "Median time:\t%v ms\n", pr.getMedian()*time.Millisecond)
-	fmt.Fprintf(writer, "Smallest Response:\t%v bytes\n", pr.smallestResponseBytes)
-	fmt.Fprintf(writer, "Largest Response:\t%v bytes\n", pr.largestResponseBytes)
+	fmt.Fprintf(writer, "Requests:\t%8v\n", pr.requests)
+	fmt.Fprintf(writer, "Fastest request:\t%8v ms\n", pr.fastest.Milliseconds())
+	fmt.Fprintf(writer, "Slowest request:\t%8v ms\n", pr.slowest.Milliseconds())
+	fmt.Fprintf(writer, "Mean time:\t%8v ms\n", time.Duration(pr.meanTime).Milliseconds())
+	fmt.Fprintf(writer, "Median time:\t%8v ms\n", pr.getMedian().Milliseconds())
+	fmt.Fprintf(writer, "Smallest Response:\t%8v bytes\n", pr.smallestResponseBytes)
+	fmt.Fprintf(writer, "Largest Response:\t%8v bytes\n", pr.largestResponseBytes)
 	writer.Flush()
 	return str.String()
 }
