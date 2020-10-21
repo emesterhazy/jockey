@@ -65,8 +65,11 @@ func (pr *profileResults) updateStats(status int, requestTime time.Duration,
 	bytesTransferred uint) {
 	pr.requests++
 	// Online algorithm to update mean
+	// TODO: Should I not bother with this and just use the values we're
+	//  storing for the median to calculate it in one shot?
 	delta := float64(requestTime) - pr.meanTime
 	pr.meanTime += delta / float64(pr.requests)
+
 	// Update slowest / fastest response
 	if requestTime > pr.slowest {
 		pr.slowest = requestTime
@@ -97,6 +100,7 @@ func doProfile(repetitions int, host string, path string, port int,
 
 	for i := 0; i < repetitions; i++ {
 		start := time.Now()
+		// TODO: dumpHTTP needs to return the number of bytes read
 		status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
 		if err != nil {
 			status = 500
@@ -141,6 +145,7 @@ func doQuickSelect(l []time.Duration, left int, right int, k int) time.Duration 
 	return doQuickSelect(l, pivIndex+1, right, k)
 }
 
+// TODO: Is this too extra? I guess I could just sort and grab the median in O(n log n)
 // Find the kth largest item in slice l with k indexed starting from 1
 // quickSelect modifies the slice in place; make a copy if you want to avoid that
 func quickSelect(l []time.Duration, k int) (time.Duration, error) {

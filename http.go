@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// Parse a user supplied URL string and accounting for missing http / https scheme
+// Parse a user supplied URL string and account for missing http / https scheme
 // by appending and retrying the parse
 func parseFuzzyURL(rawURL string) (*url.URL, error) {
 	originalURL := rawURL
@@ -47,8 +47,7 @@ func dumpHTTP(writer io.Writer, host string, path string, port int,
 		return -1, err
 	}
 	defer conn.Close()
-	// TODO: keep track of the number of bytes read
-	// New buffered reader with 16 page buffer
+	// TODO: keep track of the number of bytes read and return it
 	reader := bufio.NewReaderSize(conn, 0x1000*16)
 	tp := textproto.NewReader(reader)
 	statusLine, err := tp.ReadLine()
@@ -102,6 +101,8 @@ func openRequest(host string, path string, port int, headers *map[string]string)
 	}
 
 	addrs, _ := net.LookupHost(host)
+	// TODO: This seems fragile -> maybe I can just use net.Dial since all the spec mentioned is
+	// 	not using a library for HTTP
 	for _, addr := range addrs {
 		tcpAddr := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
 		// TODO: Add a timeout here
