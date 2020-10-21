@@ -1,13 +1,15 @@
 package main
 
 import (
+	"math/rand"
 	"net/url"
 	"testing"
+	"time"
 )
 
 // Helper function to compare result returned by ParseURL
 func doTestParseURL(t *testing.T, testCase *urlCase) {
-	got, err := fuzzyParseURL(testCase.rawURL)
+	got, err := parseFuzzyURL(testCase.rawURL)
 	if err != nil && !testCase.expectError {
 		t.Errorf("Parsing %s returned error%s\n",
 			err.Error(), testCase.rawURL)
@@ -17,7 +19,7 @@ func doTestParseURL(t *testing.T, testCase *urlCase) {
 	} else if err == nil && testCase.expectError {
 		t.Errorf("Expected error parsing %s and got none\n", testCase.rawURL)
 	} else if err != nil && got == nil {
-		t.Errorf("fuzzyParseURL returned a nil pointer without setting error for url %s\n",
+		t.Errorf("parseFuzzyURL returned a nil pointer without setting error for url %s\n",
 			testCase.rawURL)
 	}
 
@@ -51,5 +53,53 @@ func TestParse(t *testing.T) {
 	}
 	for _, c := range cases {
 		doTestParseURL(t, &c)
+	}
+}
+
+func TestPartition(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	mx := 10_000
+	nums := make([]time.Duration, mx)
+	for i := range nums {
+		nums[i] = time.Duration(i + 1)
+	}
+	for i := 0; i < 1000; i++ {
+		rand.Shuffle(len(nums), func(i, j int) {
+			nums[i], nums[j] = nums[j], nums[i]
+		})
+		piv := rand.Intn(len(nums))
+		piv = partition(nums, 0, len(nums)-1, piv)
+		// No numbers below pivot are greater
+		for j := 0; j < piv; j++ {
+			if nums[j] > nums[piv] {
+				t.Errorf("failed partition")
+			}
+		}
+		// No numbers above pivot are smaller
+		for j := piv + 1; j < len(nums); j++ {
+			if nums[j] < nums[piv] {
+				t.Errorf("failed partition")
+			}
+		}
+	}
+}
+
+func TestQuickSelect(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	mx := 10_000
+	nums := make([]time.Duration, mx)
+	for i := range nums {
+		nums[i] = time.Duration(i + 1)
+	}
+
+	for i := 0; i < 1000; i++ {
+		rand.Shuffle(len(nums), func(i, j int) {
+			nums[i], nums[j] = nums[j], nums[i]
+		})
+		// These type casts get a little hairy in Go
+		exp := time.Duration(rand.Intn(mx) + 1)
+		if val, _ := quickSelect(nums, int(exp)); val != exp {
+			t.Errorf("wrong value expected %d got %d\n", exp, val)
+		}
 	}
 }
