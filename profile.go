@@ -1,11 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
+	"jockey/quickselect"
 	"math"
-	"math/rand"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -51,9 +50,9 @@ func (pr *profileResults) getMedian() time.Duration {
 		return pr.medianTime
 	}
 	mid := len(pr.requestTimes) / 2
-	a, _ := quickSelect(times, mid)
+	a, _ := quickselect.QuickSelect(times, mid)
 	if pr.requests%2 == 0 {
-		b, _ := quickSelect(times, mid+1)
+		b, _ := quickselect.QuickSelect(times, mid+1)
 		pr.medianTime = (a + b) / 2 // We might lose a fraction of a nanosecond but that's ok
 	} else {
 		pr.medianTime = a
@@ -113,48 +112,4 @@ func doProfile(repetitions int, host string, path string, port int,
 	}
 
 	return results
-}
-
-// Partition function for doQuickSelect
-func partition(l []time.Duration, left int, right int, pivIndex int) int {
-	pv := l[pivIndex]
-	l[pivIndex], l[right] = l[right], l[pivIndex]
-	currentIx := left
-	for i := left; i < right; i++ {
-		if l[i] < pv {
-			l[currentIx], l[i] = l[i], l[currentIx]
-			currentIx++
-		}
-	}
-	l[currentIx], l[right] = l[right], l[currentIx]
-	return currentIx
-}
-
-// The implements the quickSelect algorithm
-// https://en.wikipedia.org/wiki/Quickselect
-func doQuickSelect(l []time.Duration, left int, right int, k int) time.Duration {
-	if left == right {
-		return l[left]
-	}
-	pivIndex := rand.Intn(right-left+1) + left
-	pivIndex = partition(l, left, right, pivIndex)
-	if k == pivIndex {
-		return l[k]
-	} else if k < pivIndex {
-		return doQuickSelect(l, left, pivIndex-1, k)
-	}
-	// else
-	return doQuickSelect(l, pivIndex+1, right, k)
-}
-
-// TODO: Is this too extra? I guess I could just sort and grab the median in O(n log n)
-// Find the kth largest item in slice l with k indexed starting from 1
-// quickSelect modifies the slice in place; make a copy if you want to avoid that
-func quickSelect(l []time.Duration, k int) (time.Duration, error) {
-	if k < 1 {
-		return 0, errors.New("quickSelect: invalid k")
-	} else if len(l) == 0 {
-		return 0, errors.New("quickSelect: 0 length slice")
-	}
-	return doQuickSelect(l, 0, len(l)-1, k-1), nil
 }
