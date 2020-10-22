@@ -23,7 +23,7 @@ type profileResults struct {
 	requestTimes          []time.Duration
 }
 
-func (pr *profileResults) init(numExpectedRequests int) {
+func (pr *profileResults) Init(numExpectedRequests int) {
 	pr.statusCodeCounts = make(map[int]int)
 	pr.requestTimes = make([]time.Duration, 0, numExpectedRequests)
 	pr.fastest = math.MaxInt64
@@ -37,14 +37,14 @@ func (pr *profileResults) String() string {
 	fmt.Fprintf(writer, "Fastest request:\t%8v ms\n", pr.fastest.Milliseconds())
 	fmt.Fprintf(writer, "Slowest request:\t%8v ms\n", pr.slowest.Milliseconds())
 	fmt.Fprintf(writer, "Mean time:\t%8v ms\n", time.Duration(pr.meanTime).Milliseconds())
-	fmt.Fprintf(writer, "Median time:\t%8v ms\n", pr.getMedian().Milliseconds())
+	fmt.Fprintf(writer, "Median time:\t%8v ms\n", pr.GetMedian().Milliseconds())
 	fmt.Fprintf(writer, "Smallest Response:\t%8v bytes\n", pr.smallestResponseBytes)
 	fmt.Fprintf(writer, "Largest Response:\t%8v bytes\n", pr.largestResponseBytes)
 	writer.Flush()
 	return str.String()
 }
 
-func (pr *profileResults) getMedian() time.Duration {
+func (pr *profileResults) GetMedian() time.Duration {
 	times := pr.requestTimes
 	if pr.medianCurrent || len(pr.requestTimes) == 0 {
 		return pr.medianTime
@@ -62,7 +62,7 @@ func (pr *profileResults) getMedian() time.Duration {
 }
 
 // Update the statistics to incorporate a new request
-func (pr *profileResults) updateStats(status int, requestTime time.Duration,
+func (pr *profileResults) UpdateStats(status int, requestTime time.Duration,
 	bytesTransferred int) {
 	pr.requests++
 	// Online algorithm to update mean
@@ -94,10 +94,10 @@ func (pr *profileResults) updateStats(status int, requestTime time.Duration,
 	}
 }
 
-func doProfile(repetitions int, host string, path string, port int,
+func DoProfile(repetitions int, host string, path string, port int,
 	headers *map[string]string) *profileResults {
 	results := &profileResults{}
-	results.init(repetitions)
+	results.Init(repetitions)
 
 	for i := 0; i < repetitions; i++ {
 		start := time.Now()
@@ -108,7 +108,7 @@ func doProfile(repetitions int, host string, path string, port int,
 		}
 		stop := time.Now()
 		elapsed := stop.Sub(start)
-		results.updateStats(status, elapsed, bytesRead)
+		results.UpdateStats(status, elapsed, bytesRead)
 	}
 
 	return results
