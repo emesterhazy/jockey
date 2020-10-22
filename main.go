@@ -4,12 +4,31 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"strconv"
 	"time"
 )
+
+type profileFlag struct {
+	set   bool
+	value int
+}
+
+func (pf *profileFlag) Set(val string) error {
+	i, err := strconv.Atoi(val)
+	if err != nil {
+		pf.value = 0
+	} else {
+		pf.value = i
+	}
+	pf.set = true
+	return nil
+}
+
+func (pf *profileFlag) String() string {
+	return strconv.Itoa(pf.value)
+}
 
 func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -url <URL>\nOptions:\n", os.Args[0])
@@ -29,7 +48,9 @@ func main() {
 		"url",
 		"",
 		"(Required) The URL to send HTTP requests. Defaults to port 80 unless specified by URL:PORT")
-	profileOpt := flag.Int("profile", -1, "Make n requests to the target URL and print request statistics")
+	var profileOpt profileFlag
+	flag.Var(&profileOpt, "profile", "Make n requests to the target URL and print request statistics")
+	//profileOpt := flag.Int("profile", -1, "Make n requests to the target URL and print request statistics")
 	flag.Parse()
 
 	if *targetURL == "" {
@@ -37,9 +58,10 @@ func main() {
 		os.Exit(1)
 	}
 	// Parse URL supplied by user
-	parsed, err := parseFuzzyURL(*targetURL)
+	parsed, err := parseFuzzyHttpUrl(*targetURL)
 	if err != nil {
-		log.Fatal(err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 	port := 80 // Use port 80 by default
 	if parsed.Port() != "" {
@@ -50,16 +72,22 @@ func main() {
 		parsed.Scheme = "http"
 	}
 
-	if *profileOpt < 0 {
-		// Make a single request and dump the response to stdout
+	// Make a single request to the url and dump the response to stdout
+	if !profileOpt.set {
 		_, _, err := dumpHTTP(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil)
 		if err != nil {
-			log.Fatal(err)
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 		os.Exit(0)
-	} else {
-		results := DoProfile(*profileOpt, parsed.Hostname(), parsed.Path, port, nil)
+	} else if profileOpt.value > 0 {
+		// Run a profile on the url
+		rand.Seed(time.Now().UnixNano())
+		results := DoProfile(profileOpt.value, parsed.Hostname(), parsed.Path, port, nil)
 		fmt.Print(results.String())
 		os.Exit(0)
+	} else {
+		_, _ = fmt.Fprintln(os.Stderr, "-profile requires a positive number of repetitions")
+		os.Exit(1)
 	}
 }

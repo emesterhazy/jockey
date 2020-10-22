@@ -47,6 +47,8 @@ func doQuickSelect(times []time.Duration, left int, right int, k int) time.Durat
 // slice and can be used to calculate the median value in a slice
 // NOTE: QuickSelect changes the order of the values in times. The caller should
 // pass a copy of the slice if this is undesirable.
+// NOTE: QuickSelect uses the rand package. The caller should call rand.Seed
+// if they do not want the default seed to be used
 func QuickSelect(times []time.Duration, k int) (time.Duration, error) {
 	if k < 1 {
 		return 0, errors.New("quickSelect: k less than 1")

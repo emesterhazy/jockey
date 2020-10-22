@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"jockey/counter"
-	"log"
 	"net"
 	"net/textproto"
 	"net/url"
@@ -14,9 +13,9 @@ import (
 	"strings"
 )
 
-// Parse a user supplied URL string and account for missing http / https scheme
+// Parse a user supplied URL string and account for missing http:// scheme
 // by appending and retrying the parse
-func parseFuzzyURL(urlRaw string) (*url.URL, error) {
+func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	originalURL := urlRaw
 	// Retry at most once to add scheme
 	for i := 0; i < 2; i++ {
@@ -25,10 +24,12 @@ func parseFuzzyURL(urlRaw string) (*url.URL, error) {
 			return nil, fmt.Errorf("invalid URL %s\n", originalURL)
 		}
 		if parsed.Scheme == "" || parsed.Hostname() == "" {
+			// url.Parse assumes a valid URL with a scheme
+			// Retry with http if the user did not specify
 			urlRaw = "http://" + urlRaw
 			continue
-		} else if parsed.Scheme != "http" && parsed.Scheme != "https" {
-			return nil, fmt.Errorf("invalid URL: %s\n", originalURL)
+		} else if parsed.Scheme != "http" {
+			return nil, fmt.Errorf("invalid URL scheme: expected http, got %s", parsed.Scheme)
 		}
 		return parsed, nil
 	}
@@ -107,7 +108,6 @@ func openRequest(host string, path string, port int, headers *map[string]string)
 		// TODO: Add a timeout here
 		conn, err := net.DialTCP("tcp", nil, tcpAddr)
 		if err != nil {
-			log.Print(err)
 			continue
 		}
 		// Write HTTP request line and headers

@@ -31,17 +31,26 @@ func (pr *profileResults) Init(numExpectedRequests int) {
 }
 
 func (pr *profileResults) String() string {
-	var str strings.Builder
-	writer := tabwriter.NewWriter(&str, 0, 0, 4, ' ', 0)
-	fmt.Fprintf(writer, "Requests:\t%8v\n", pr.requests)
-	fmt.Fprintf(writer, "Fastest request:\t%8v ms\n", pr.fastest.Milliseconds())
-	fmt.Fprintf(writer, "Slowest request:\t%8v ms\n", pr.slowest.Milliseconds())
-	fmt.Fprintf(writer, "Mean time:\t%8v ms\n", time.Duration(pr.meanTime).Milliseconds())
-	fmt.Fprintf(writer, "Median time:\t%8v ms\n", pr.GetMedian().Milliseconds())
-	fmt.Fprintf(writer, "Smallest Response:\t%8v bytes\n", pr.smallestResponseBytes)
-	fmt.Fprintf(writer, "Largest Response:\t%8v bytes\n", pr.largestResponseBytes)
-	writer.Flush()
-	return str.String()
+	const (
+		minWidth = 0
+		tabWidth = 0
+		padding  = 4
+		padChar  = ' '
+		flags    = 0
+	)
+	var resultsBuilder strings.Builder
+	writer := tabwriter.NewWriter(&resultsBuilder, minWidth, tabWidth, padding, padChar, flags)
+	// Writes to tabwriter and string.Builder should not fail and there is not much
+	// we can do if they do. Thus we just explicitly ignore the errors.
+	_, _ = fmt.Fprintf(writer, "Requests:\t%8v\n", pr.requests)
+	_, _ = fmt.Fprintf(writer, "Fastest request:\t%8v ms\n", pr.fastest.Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Slowest request:\t%8v ms\n", pr.slowest.Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Mean time:\t%8v ms\n", time.Duration(pr.meanTime).Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Median time:\t%8v ms\n", pr.GetMedian().Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Smallest Response:\t%8v bytes\n", pr.smallestResponseBytes)
+	_, _ = fmt.Fprintf(writer, "Largest Response:\t%8v bytes\n", pr.largestResponseBytes)
+	_ = writer.Flush()
+	return resultsBuilder.String()
 }
 
 func (pr *profileResults) GetMedian() time.Duration {
@@ -74,13 +83,15 @@ func (pr *profileResults) UpdateStats(status int, requestTime time.Duration,
 	// Update slowest / fastest response
 	if requestTime > pr.slowest {
 		pr.slowest = requestTime
-	} else if requestTime < pr.fastest {
+	}
+	if requestTime < pr.fastest {
 		pr.fastest = requestTime
 	}
 	// Update largest / smallest response
 	if bytesTransferred > pr.largestResponseBytes {
 		pr.largestResponseBytes = bytesTransferred
-	} else if bytesTransferred < pr.smallestResponseBytes {
+	}
+	if bytesTransferred < pr.smallestResponseBytes {
 		pr.smallestResponseBytes = bytesTransferred
 	}
 	// Need to store all times to calculate median...
@@ -101,15 +112,14 @@ func DoProfile(repetitions int, host string, path string, port int,
 
 	for i := 0; i < repetitions; i++ {
 		start := time.Now()
-		// TODO: dumpHTTP needs to return the number of bytes read
 		bytesRead, status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
 		if err != nil {
+			// TODO: Maybe we should track failed requests separately
 			status = 500
 		}
 		stop := time.Now()
 		elapsed := stop.Sub(start)
 		results.UpdateStats(status, elapsed, bytesRead)
 	}
-
 	return results
 }
