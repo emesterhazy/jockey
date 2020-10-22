@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"strings"
 	"text/tabwriter"
@@ -17,8 +18,8 @@ type profileResults struct {
 	meanTime              float64       // Float to minimize precision loss since we update on each request
 	medianTime            time.Duration // Avoid re-calculating if the median is up-to-date
 	medianCurrent         bool
-	smallestResponseBytes uint
-	largestResponseBytes  uint
+	smallestResponseBytes int
+	largestResponseBytes  int
 	statusCodeCounts      map[int]int
 	requestTimes          []time.Duration
 }
@@ -26,7 +27,8 @@ type profileResults struct {
 func (pr *profileResults) init(numExpectedRequests int) {
 	pr.statusCodeCounts = make(map[int]int)
 	pr.requestTimes = make([]time.Duration, 0, numExpectedRequests)
-	pr.fastest = 1<<63 - 1
+	pr.fastest = math.MaxInt64
+	pr.smallestResponseBytes = math.MaxInt32
 }
 
 func (pr *profileResults) String() string {
@@ -62,7 +64,7 @@ func (pr *profileResults) getMedian() time.Duration {
 
 // Update the statistics to incorporate a new request
 func (pr *profileResults) updateStats(status int, requestTime time.Duration,
-	bytesTransferred uint) {
+	bytesTransferred int) {
 	pr.requests++
 	// Online algorithm to update mean
 	// TODO: Should I not bother with this and just use the values we're
@@ -101,13 +103,13 @@ func doProfile(repetitions int, host string, path string, port int,
 	for i := 0; i < repetitions; i++ {
 		start := time.Now()
 		// TODO: dumpHTTP needs to return the number of bytes read
-		status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
+		bytesRead, status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
 		if err != nil {
 			status = 500
 		}
 		stop := time.Now()
 		elapsed := stop.Sub(start)
-		results.updateStats(status, elapsed, 0)
+		results.updateStats(status, elapsed, bytesRead)
 	}
 
 	return results

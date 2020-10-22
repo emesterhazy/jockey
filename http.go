@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"jockey/counter"
 	"log"
 	"net"
 	"net/textproto"
@@ -15,19 +16,16 @@ import (
 
 // Parse a user supplied URL string and account for missing http / https scheme
 // by appending and retrying the parse
-func parseFuzzyURL(rawURL string) (*url.URL, error) {
-	originalURL := rawURL
+func parseFuzzyURL(urlRaw string) (*url.URL, error) {
+	originalURL := urlRaw
 	// Retry at most once to add scheme
 	for i := 0; i < 2; i++ {
-		parsed, err := url.Parse(rawURL)
+		parsed, err := url.Parse(urlRaw)
 		if err != nil {
 			return nil, fmt.Errorf("invalid URL %s\n", originalURL)
 		}
-		if parsed.Scheme == "" || (parsed.Scheme != "" && parsed.Hostname() == "") {
-			// URL did not specify scheme do we default to http and retry parse
-			// url.Parse is dumb and considers everything before the first : to be the scheme
-			// which causes issues if no scheme is provided but :port is
-			rawURL = "http://" + rawURL
+		if parsed.Scheme == "" || parsed.Hostname() == "" {
+			urlRaw = "http://" + urlRaw
 			continue
 		} else if parsed.Scheme != "http" && parsed.Scheme != "https" {
 			return nil, fmt.Errorf("invalid URL: %s\n", originalURL)
@@ -40,31 +38,32 @@ func parseFuzzyURL(rawURL string) (*url.URL, error) {
 // Make an HTTP request and dump the response to [writer]
 // Returns the HTTP response status
 func dumpHTTP(writer io.Writer, host string, path string, port int,
-	headers *map[string]string) (int, error) {
+	headers *map[string]string) (int, int, error) {
 
 	conn, err := openRequest(host, path, port, headers)
 	if err != nil {
-		return -1, err
+		return 0, -1, err
 	}
 	defer conn.Close()
 	// TODO: keep track of the number of bytes read and return it
-	reader := bufio.NewReaderSize(conn, 0x1000*16)
+	counts := counter.NewReader(conn)
+	reader := bufio.NewReaderSize(counts, 0x1000*16)
 	tp := textproto.NewReader(reader)
 	statusLine, err := tp.ReadLine()
 	if err != nil {
-		return -1, err
+		return counts.Count(), -1, err
 	}
 	statusFields := strings.Fields(statusLine)
 	status, err := strconv.Atoi(statusFields[1])
 	if err != nil {
 		// Bad status line
-		return -1, errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
+		return counts.Count(), -1, errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
 	}
 	// Skip headers
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
-			return status, err
+			return counts.Count(), status, err
 		}
 		if line == "" {
 			break
@@ -73,10 +72,9 @@ func dumpHTTP(writer io.Writer, host string, path string, port int,
 
 	_, err = reader.WriteTo(writer)
 	if err != nil && err != io.EOF {
-		return status, err
+		return counts.Count(), status, err
 	}
-	return status, nil
-
+	return counts.Count(), status, nil
 }
 
 // Send an HTTP request and return an open TCP connection
@@ -91,6 +89,7 @@ func openRequest(host string, path string, port int, headers *map[string]string)
 		"Accept-Encoding": "identity",
 		"Connection":      "close",
 	}
+	// The caller is reasonable for providing reasonable headers if they override defaults
 	if headers != nil {
 		for k, v := range *headers {
 			reqHeaders[k] = v

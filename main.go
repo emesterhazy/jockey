@@ -52,7 +52,7 @@ func main() {
 
 	if *profileOpt < 0 {
 		// Make a single request and dump the response to stdout
-		_, err := dumpHTTP(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil)
+		_, _, err := dumpHTTP(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
