@@ -58,14 +58,14 @@ func (pr *ProfileResults) String() string {
 	// Writes to tabwriter and string.Builder should not fail and there is not much
 	// we can do if they do, so we just explicitly ignore the errors.
 	percentSuccessful := float64(pr.Requests-pr.FailedRequests) / float64(pr.Requests) * 100
-	_, _ = fmt.Fprintf(writer, "Requests:\t%10v\n", pr.Requests)
-	_, _ = fmt.Fprintf(writer, "Successful Requests:\t%10.2f\t%%\n", percentSuccessful)
-	_, _ = fmt.Fprintf(writer, "Fastest request:\t%10v\tms\n", pr.Fastest.Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Slowest request:\t%10v\tms\n", pr.Slowest.Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Mean time:\t%10v\tms\n", time.Duration(pr.MeanTime).Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Median time:\t%10v\tms\n", pr.GetMedian().Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Smallest Response:\t%10v\tbytes\n", pr.SmallestResponseBytes)
-	_, _ = fmt.Fprintf(writer, "Largest Response:\t%10v\tbytes\n", pr.LargestResponseBytes)
+	_, _ = fmt.Fprintf(writer, "Requests:\t%15v\n", pr.Requests)
+	_, _ = fmt.Fprintf(writer, "Successful Requests:\t%15.2f\t%%\n", percentSuccessful)
+	_, _ = fmt.Fprintf(writer, "Fastest request:\t%15v\tms\n", pr.Fastest.Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Slowest request:\t%15v\tms\n", pr.Slowest.Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Mean time:\t%15v\tms\n", time.Duration(pr.MeanTime).Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Median time:\t%15v\tms\n", pr.GetMedian().Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Smallest Response:\t%15v\tbytes\n", pr.SmallestResponseBytes)
+	_, _ = fmt.Fprintf(writer, "Largest Response:\t%15v\tbytes\n", pr.LargestResponseBytes)
 
 	statusCodes := make([]int, 0, len(pr.StatusCodeCounts))
 	for code := range pr.StatusCodeCounts {
@@ -77,7 +77,7 @@ func (pr *ProfileResults) String() string {
 	if len(statusCodes) > 0 {
 		_, _ = fmt.Fprintf(writer, "Error codes returned:\t\n")
 		for _, code := range statusCodes {
-			_, _ = fmt.Fprintf(writer, "%d:\t%8v\n", code, pr.StatusCodeCounts[code])
+			_, _ = fmt.Fprintf(writer, "%d:\t%15v\n", code, pr.StatusCodeCounts[code])
 		}
 	}
 	_ = writer.Flush()
