@@ -14,6 +14,7 @@ import (
 // ProfileResults stores the results of the current profile run
 type ProfileResults struct {
 	Requests              uint
+	FailedRequests        uint
 	Fastest               time.Duration
 	Slowest               time.Duration
 	MeanTime              float64 // Float to minimize precision loss since we update on each request
@@ -47,7 +48,9 @@ func (pr *ProfileResults) String() string {
 	writer := tabwriter.NewWriter(&resultsBuilder, minWidth, tabWidth, padding, padChar, flags)
 	// Writes to tabwriter and string.Builder should not fail and there is not much
 	// we can do if they do, so we just explicitly ignore the errors.
+	percentSuccessful := float64(pr.Requests-pr.FailedRequests) / float64(pr.Requests) * 100
 	_, _ = fmt.Fprintf(writer, "Requests:\t%10v\n", pr.Requests)
+	_, _ = fmt.Fprintf(writer, "Successful Requests:\t%10.2f\t%%\n", percentSuccessful)
 	_, _ = fmt.Fprintf(writer, "Fastest request:\t%10v\tms\n", pr.Fastest.Milliseconds())
 	_, _ = fmt.Fprintf(writer, "Slowest request:\t%10v\tms\n", pr.Slowest.Milliseconds())
 	_, _ = fmt.Fprintf(writer, "Mean time:\t%10v\tms\n", time.Duration(pr.MeanTime).Milliseconds())
