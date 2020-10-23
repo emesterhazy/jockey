@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// profileResults stores the results of the current profile run
-type profileResults struct {
+// ProfileResults stores the results of the current profile run
+type ProfileResults struct {
 	Requests              uint
 	Fastest               time.Duration
 	Slowest               time.Duration
@@ -26,8 +26,8 @@ type profileResults struct {
 	medianCurrent bool // Avoid re-calculating if the median is up-to-date
 }
 
-// Init initializes a new profileResults struct
-func (pr *profileResults) Init(numExpectedRequests int) {
+// Init initializes a new ProfileResults struct
+func (pr *ProfileResults) Init(numExpectedRequests int) {
 	pr.StatusCodeCounts = make(map[int]int)
 	pr.requestTimes = make([]time.Duration, 0, numExpectedRequests)
 	pr.Fastest = math.MaxInt64
@@ -35,7 +35,7 @@ func (pr *profileResults) Init(numExpectedRequests int) {
 }
 
 // String returns a formatted string representing the current results of the profile
-func (pr *profileResults) String() string {
+func (pr *ProfileResults) String() string {
 	const (
 		minWidth = 0
 		tabWidth = 0
@@ -78,7 +78,7 @@ func (pr *profileResults) String() string {
 // the median more than once this function could be implemented using two priority
 // queues which would require O(n log n) overall but would allow the median to be
 // updated after each run in O(log n) time.
-func (pr *profileResults) GetMedian() time.Duration {
+func (pr *ProfileResults) GetMedian() time.Duration {
 	if pr.medianCurrent || len(pr.requestTimes) == 0 {
 		return pr.medianTime
 	}
@@ -88,7 +88,7 @@ func (pr *profileResults) GetMedian() time.Duration {
 }
 
 // UpdateStats updates the profile results to incorporate the results of a single test
-func (pr *profileResults) UpdateStats(status int, requestTime time.Duration,
+func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 	bytesTransferred int) {
 	pr.Requests++
 	// Online algorithm to update mean
@@ -122,10 +122,13 @@ func (pr *profileResults) UpdateStats(status int, requestTime time.Duration,
 	}
 }
 
-// DoProfile sends a Requests to a
+// DoProfile sends HTTP GET requests for path to server host on the specified port
+// and records statistics based on the requests. The number of requests sent is
+// specified by the repetitions argument.
+// Returns a ProfileResults struct with the results of the profile run.
 func DoProfile(repetitions int, host string, path string, port int,
-	headers *map[string]string) *profileResults {
-	results := &profileResults{}
+	headers *map[string]string) *ProfileResults {
+	results := &ProfileResults{}
 	results.Init(repetitions)
 
 	for i := 0; i < repetitions; i++ {
