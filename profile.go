@@ -6,6 +6,8 @@ import (
 	"jockey/quickselect"
 	"math"
 	"math/rand"
+	"os"
+	"os/signal"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -66,7 +68,7 @@ func (pr *ProfileResults) String() string {
 	_, _ = fmt.Fprintf(writer, "Largest Response:\t%10v\tbytes\n", pr.LargestResponseBytes)
 
 	statusCodes := make([]int, 0, len(pr.StatusCodeCounts))
-	for code, _ := range pr.StatusCodeCounts {
+	for code := range pr.StatusCodeCounts {
 		if code >= http_error_start {
 			statusCodes = append(statusCodes, code)
 		}
@@ -156,6 +158,10 @@ func DoProfile(repetitions int, host string, path string, port int,
 	results := &ProfileResults{}
 	results.Init(repetitions)
 
+	// Set up signal handler to terminate early and print stats on sigint
+	sigintChan := make(chan os.Signal, 1)
+	signal.Notify(sigintChan, os.Interrupt)
+
 	for i := 0; i < repetitions; i++ {
 		start := time.Now()
 		bytesRead, status, err := dumpResponse(ioutil.Discard, host, path, port, headers)
@@ -166,6 +172,12 @@ func DoProfile(repetitions int, host string, path string, port int,
 		stop := time.Now()
 		elapsed := stop.Sub(start)
 		results.UpdateStats(status, elapsed, bytesRead)
+		select {
+		// Break out of loop on sigint
+		case <-sigintChan:
+			return results
+		default:
+		}
 	}
 	return results
 }
