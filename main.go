@@ -35,6 +35,8 @@ func usage() {
 By default, Jockey sends a single HTTP request to the specified URL and dumps
 the body of the HTTP response to stdout. Use the --profile option to send n
 Requests and generate profile report.
+
+Jockey currently only supports HTTP requests and does not follow redirects.
 `
 	fmt.Fprint(flag.CommandLine.Output(), msg)
 }
