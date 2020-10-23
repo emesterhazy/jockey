@@ -5,14 +5,13 @@ import (
 	"testing"
 )
 
-// URL test case for parseFuzzyHttpUrl
-type urlCase struct {
-	rawURL      string
-	expected    url.URL
-	expectError bool
-}
-
 func TestParseFuzzyHttpUrl(t *testing.T) {
+	// URL test case for parseFuzzyHttpUrl
+	type urlCase struct {
+		rawURL      string
+		expected    url.URL
+		expectError bool
+	}
 	cases := []urlCase{
 		{"www.google.com", url.URL{Scheme: "http", Host: "www.google.com"}, false},
 		{"www.google.com:80", url.URL{Scheme: "http", Host: "www.google.com:80"}, false},
@@ -23,6 +22,8 @@ func TestParseFuzzyHttpUrl(t *testing.T) {
 		{"wss://google.com", url.URL{}, true},
 		{"http://www.cloudflare.com:80/index.html", url.URL{Scheme: "http", Host: "www.cloudflare.com:80"}, false},
 		{"www.google.com:badport", url.URL{}, true},
+		{"127.0.0.1:80", url.URL{Scheme: "http", Host: "127.0.0.1:80"}, false},
+		{"http://127.0.0.1:80", url.URL{Scheme: "http", Host: "127.0.0.1:80"}, false},
 	}
 	for _, testCase := range cases {
 		got, err := parseFuzzyHttpUrl(testCase.rawURL)

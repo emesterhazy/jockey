@@ -14,7 +14,6 @@ import (
 	"strings"
 )
 
-
 // parseFuzzyHttpUrl parses a user supplied URL.
 // If the url contains a URL scheme other than http (i.e. https, wss, etc)
 // an error is returned.
@@ -24,6 +23,12 @@ func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	for i := 0; i < 2; i++ {
 		parsed, err := url.Parse(urlRaw)
 		if err != nil {
+			if i == 0 {
+				// IP addrs with a port but no scheme return an error - append
+				// default http scheme and make a second attempt to parse
+				urlRaw = "http://" + urlRaw
+				continue
+			}
 			return nil, fmt.Errorf("invalid URL %s\n", originalURL)
 		}
 		if parsed.Scheme == "" || parsed.Hostname() == "" {
@@ -32,7 +37,7 @@ func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 			urlRaw = "http://" + urlRaw
 			continue
 		} else if parsed.Scheme != "http" {
-			return nil, fmt.Errorf("invalid URL scheme: expected http, got %s", parsed.Scheme)
+			return nil, fmt.Errorf("incompatible URL scheme: expected http, got %s", parsed.Scheme)
 		}
 		return parsed, nil
 	}
