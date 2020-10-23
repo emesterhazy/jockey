@@ -98,6 +98,8 @@ func (pr *ProfileResults) GetMedian() time.Duration {
 }
 
 // UpdateStats updates the profile results to incorporate the results of a single test
+// Use RecordFailedTransaction if the attempted transaction failed without a valid HTTP
+// response.
 func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 	bytesTransferred int) {
 	pr.Requests++
@@ -136,6 +138,14 @@ func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 	}
 }
 
+// RecordFailedTransaction records an attempted request that result in an error
+// without receiving a valid HTTP response, such as a broken pipe, refused connection
+// or malformed HTTP response.
+func (pr *ProfileResults) RecordFailedTransaction() {
+	pr.Requests++
+	pr.FailedRequests++
+}
+
 // DoProfile sends HTTP GET requests for path to server host on the specified port
 // and records statistics based on the requests. The number of requests sent is
 // specified by the repetitions argument.
@@ -150,8 +160,7 @@ func DoProfile(repetitions int, host string, path string, port int,
 		start := time.Now()
 		bytesRead, status, err := dumpResponse(ioutil.Discard, host, path, port, headers)
 		if err != nil {
-			results.Requests++
-			results.FailedRequests++
+			results.RecordFailedTransaction()
 			continue
 		}
 		stop := time.Now()
