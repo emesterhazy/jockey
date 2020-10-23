@@ -72,7 +72,7 @@ func (pr *ProfileResults) String() string {
 		}
 	}
 	sort.IntSlice.Sort(statusCodes)
-	if pr.FailedRequests > 0 {
+	if len(statusCodes) > 0 {
 		_, _ = fmt.Fprintf(writer, "Error codes returned:\t\n")
 		for _, code := range statusCodes {
 			_, _ = fmt.Fprintf(writer, "%d:\t%8v\n", code, pr.StatusCodeCounts[code])
