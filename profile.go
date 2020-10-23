@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"jockey/quickselect"
 	"math"
+	"math/rand"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -29,6 +30,8 @@ type ProfileResults struct {
 
 // Init initializes a new ProfileResults struct
 func (pr *ProfileResults) Init(numExpectedRequests int) {
+	// Seed the random number generator for calculating the median later
+	rand.Seed(time.Now().UnixNano())
 	pr.StatusCodeCounts = make(map[int]int)
 	pr.requestTimes = make([]time.Duration, 0, numExpectedRequests)
 	pr.Fastest = math.MaxInt64
@@ -131,6 +134,7 @@ func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 // Returns a ProfileResults struct with the results of the profile run.
 func DoProfile(repetitions int, host string, path string, port int,
 	headers *map[string]string) *ProfileResults {
+
 	results := &ProfileResults{}
 	results.Init(repetitions)
 

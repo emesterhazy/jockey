@@ -4,10 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"strconv"
-	"time"
 )
 
 type profileFlag struct {
@@ -42,7 +40,6 @@ Requests and generate profile report.
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
 	flag.Usage = usage
 	targetURL := flag.String(
 		"url",
@@ -82,7 +79,6 @@ func main() {
 		os.Exit(0)
 	} else if profileOpt.value > 0 {
 		// Run a profile on the url
-		rand.Seed(time.Now().UnixNano())
 		results := DoProfile(profileOpt.value, parsed.Hostname(), parsed.Path, port, nil)
 		fmt.Print(results.String())
 		os.Exit(0)
