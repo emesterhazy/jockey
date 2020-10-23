@@ -68,7 +68,7 @@ func main() {
 
 	// Make a single request to the url and dump the response to stdout
 	if !profileOpt.set {
-		_, _, err := dumpResponse(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil)
+		_, _, err := dumpResponse(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil, nil)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -76,7 +76,9 @@ func main() {
 		os.Exit(0)
 	} else if profileOpt.value > 0 {
 		// Run a profile on the url
+		fmt.Printf("Running profile with %d repetitions...", profileOpt.value)
 		results := DoProfile(profileOpt.value, parsed.Hostname(), parsed.Path, port, nil)
+		fmt.Println()
 		fmt.Print(results.String())
 		os.Exit(0)
 	} else {

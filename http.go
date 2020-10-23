@@ -12,7 +12,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const gracefulCleanupTimeout = time.Millisecond * 300
 
 // parseFuzzyHttpUrl parses a user supplied URL.
 // If the url contains a URL scheme other than http (i.e. https, wss, etc)
@@ -49,13 +52,29 @@ func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 // returns the HTTP status code and the number of bytes read (including headers),
 // otherwise it returns an error.
 func dumpResponse(writer io.Writer, host string, path string, port int,
-	headers *map[string]string) (int, int, error) {
+	headers *map[string]string, abort chan struct{}) (int, int, error) {
 
 	conn, err := openRequest(host, path, port, headers)
 	if err != nil {
 		return 0, -1, err
 	}
 	defer conn.Close()
+
+	// Close the socket to unblock if the caller decides to abort the request
+	if abort != nil {
+		closeOnReturn := make(chan struct{})
+		defer close(closeOnReturn)
+		go func() {
+			select {
+			case <-abort:
+				// Give the connection a small amount of time to finish up
+				timeout := time.NewTimer(gracefulCleanupTimeout)
+				<-timeout.C
+				conn.Close()
+			case <-closeOnReturn:
+			}
+		}()
+	}
 
 	// Count the number of bytes read by wrapping the connection in a counter.Reader
 	counts := counter.NewReader(conn)

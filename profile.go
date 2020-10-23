@@ -155,16 +155,31 @@ func (pr *ProfileResults) RecordFailedTransaction() {
 func DoProfile(repetitions int, host string, path string, port int,
 	headers *map[string]string) *ProfileResults {
 
-	results := &ProfileResults{}
-	results.Init(repetitions)
-
 	// Set up signal handler to terminate early and print stats on sigint
 	sigintChan := make(chan os.Signal, 1)
 	signal.Notify(sigintChan, os.Interrupt)
+	// Defer executes in LIFO order; reset sig handler and then close chan to
+	// unblock go routine listening on it
+	defer close(sigintChan)
+	defer signal.Reset(os.Interrupt)
+	stopEarly := make(chan struct{})
+	go func() {
+		defer func() { recover() }()
+		<-sigintChan
+		close(stopEarly)
+	}()
 
+	results := &ProfileResults{}
+	results.Init(repetitions)
 	for i := 0; i < repetitions; i++ {
+		select {
+		// Break out of loop on interrupt
+		case <-stopEarly:
+			return results
+		default:
+		}
 		start := time.Now()
-		bytesRead, status, err := dumpResponse(ioutil.Discard, host, path, port, headers)
+		bytesRead, status, err := dumpResponse(ioutil.Discard, host, path, port, headers, stopEarly)
 		if err != nil {
 			results.RecordFailedTransaction()
 			continue
@@ -172,12 +187,6 @@ func DoProfile(repetitions int, host string, path string, port int,
 		stop := time.Now()
 		elapsed := stop.Sub(start)
 		results.UpdateStats(status, elapsed, bytesRead)
-		select {
-		// Break out of loop on sigint
-		case <-sigintChan:
-			return results
-		default:
-		}
 	}
 	return results
 }
