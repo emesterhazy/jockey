@@ -63,10 +63,6 @@ func main() {
 	if parsed.Port() != "" {
 		port, _ = strconv.Atoi(parsed.Port())
 	}
-	// Use http for all requests instead of https
-	if parsed.Scheme == "https" {
-		parsed.Scheme = "http"
-	}
 
 	// Make a single request to the url and dump the response to stdout
 	if !profileOpt.set {
