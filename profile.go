@@ -148,7 +148,7 @@ func DoProfile(repetitions int, host string, path string, port int,
 
 	for i := 0; i < repetitions; i++ {
 		start := time.Now()
-		bytesRead, status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
+		bytesRead, status, err := dumpResponse(ioutil.Discard, host, path, port, headers)
 		if err != nil {
 			results.Requests++
 			results.FailedRequests++

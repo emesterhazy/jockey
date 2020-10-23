@@ -9,12 +9,15 @@ import (
 	"net"
 	"net/textproto"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 )
 
-// Parse a user supplied URL string and account for missing http:// scheme
-// by appending and retrying the parse
+
+// parseFuzzyHttpUrl parses a user supplied URL.
+// If the url contains a URL scheme other than http (i.e. https, wss, etc)
+// an error is returned.
 func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	originalURL := urlRaw
 	// Retry at most once to add scheme
@@ -36,9 +39,11 @@ func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	return nil, fmt.Errorf("invalid URL: %s\n", originalURL)
 }
 
-// Make an HTTP request and dump the response to [writer]
-// Returns the HTTP response status
-func dumpHTTP(writer io.Writer, host string, path string, port int,
+// dumpResponse makes an http request for a path at the given host and port
+// and writes the response body to writer. On a successful request dumpResponse
+// returns the HTTP status code and the number of bytes read (including headers),
+// otherwise it returns an error.
+func dumpResponse(writer io.Writer, host string, path string, port int,
 	headers *map[string]string) (int, int, error) {
 
 	conn, err := openRequest(host, path, port, headers)
@@ -46,21 +51,25 @@ func dumpHTTP(writer io.Writer, host string, path string, port int,
 		return 0, -1, err
 	}
 	defer conn.Close()
-	// TODO: keep track of the number of bytes read and return it
+
+	// Count the number of bytes read by wrapping the connection in a counter.Reader
 	counts := counter.NewReader(conn)
-	reader := bufio.NewReaderSize(counts, 0x1000*16)
+	reader := bufio.NewReaderSize(counts, os.Getpagesize()*16)
 	tp := textproto.NewReader(reader)
 	statusLine, err := tp.ReadLine()
 	if err != nil {
 		return counts.Count(), -1, err
 	}
+
+	// Parse the Status-Line
 	statusFields := strings.Fields(statusLine)
+	// Response code is the second field in a HTTP Status-Line
 	status, err := strconv.Atoi(statusFields[1])
 	if err != nil {
-		// Bad status line
+		// Bad Status-Line
 		return counts.Count(), -1, errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
 	}
-	// Skip headers
+	// Skip over the rest of the headers without writing them to writer
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
@@ -71,6 +80,7 @@ func dumpHTTP(writer io.Writer, host string, path string, port int,
 		}
 	}
 
+	// Write the response body to writer
 	_, err = reader.WriteTo(writer)
 	if err != nil && err != io.EOF {
 		return counts.Count(), status, err

@@ -70,7 +70,7 @@ func main() {
 
 	// Make a single request to the url and dump the response to stdout
 	if !profileOpt.set {
-		_, _, err := dumpHTTP(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil)
+		_, _, err := dumpResponse(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
