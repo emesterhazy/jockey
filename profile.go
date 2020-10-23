@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+// 3xx codes and below are not considered errors
+const http_error_start = 400
+
 // ProfileResults stores the results of the current profile run
 type ProfileResults struct {
 	Requests              uint
@@ -63,12 +67,12 @@ func (pr *ProfileResults) String() string {
 
 	statusCodes := make([]int, 0, len(pr.StatusCodeCounts))
 	for code, _ := range pr.StatusCodeCounts {
-		if code >= 300 {
+		if code >= http_error_start {
 			statusCodes = append(statusCodes, code)
 		}
 	}
 	sort.IntSlice.Sort(statusCodes)
-	if len(statusCodes) > 0 {
+	if pr.FailedRequests > 0 {
 		_, _ = fmt.Fprintf(writer, "Error codes returned:\t\n")
 		for _, code := range statusCodes {
 			_, _ = fmt.Fprintf(writer, "%d:\t%8v\n", code, pr.StatusCodeCounts[code])
@@ -97,11 +101,13 @@ func (pr *ProfileResults) GetMedian() time.Duration {
 func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 	bytesTransferred int) {
 	pr.Requests++
-	// Online algorithm to update mean
-	// TODO: Should I not bother with this and just use the values we're
-	//  storing for the median to calculate it in one shot?
+	// The mean request time can be updated in O(1) time on each result
+	// Add the request to pr.requestTimes first since we take the length in
+	// order to calculate the mean using only requests with an associated
+	// time (excluding requests that failed without a status code).
+	pr.requestTimes = append(pr.requestTimes, requestTime)
 	delta := float64(requestTime) - pr.MeanTime
-	pr.MeanTime += delta / float64(pr.Requests)
+	pr.MeanTime += delta / float64(len(pr.requestTimes))
 
 	// Update Slowest / Fastest response
 	if requestTime > pr.Slowest {
@@ -118,13 +124,15 @@ func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 		pr.SmallestResponseBytes = bytesTransferred
 	}
 	// Need to store all times to calculate median...
-	pr.requestTimes = append(pr.requestTimes, requestTime)
 	pr.medianCurrent = false
 
 	if _, ok := pr.StatusCodeCounts[status]; ok {
 		pr.StatusCodeCounts[status]++
 	} else {
 		pr.StatusCodeCounts[status] = 1
+	}
+	if status >= http_error_start {
+		pr.FailedRequests++
 	}
 }
 
@@ -142,8 +150,9 @@ func DoProfile(repetitions int, host string, path string, port int,
 		start := time.Now()
 		bytesRead, status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
 		if err != nil {
-			// TODO: Maybe we should track failed Requests separately
-			status = 500
+			results.Requests++
+			results.FailedRequests++
+			continue
 		}
 		stop := time.Now()
 		elapsed := stop.Sub(start)

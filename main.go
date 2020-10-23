@@ -44,10 +44,9 @@ func main() {
 	targetURL := flag.String(
 		"url",
 		"",
-		"(Required) The URL to send HTTP Requests. Defaults to port 80 unless specified by URL:PORT")
+		"(Required) The URL to send HTTP Requests. Defaults to port 80 unless specified in the URL")
 	var profileOpt profileFlag
 	flag.Var(&profileOpt, "profile", "Make n Requests to the target URL and print request statistics")
-	//profileOpt := flag.Int("profile", -1, "Make n Requests to the target URL and print request statistics")
 	flag.Parse()
 
 	if *targetURL == "" {
@@ -64,7 +63,7 @@ func main() {
 	if parsed.Port() != "" {
 		port, _ = strconv.Atoi(parsed.Port())
 	}
-	// Use http for all Requests instead of http
+	// Use http for all requests instead of https
 	if parsed.Scheme == "https" {
 		parsed.Scheme = "http"
 	}
