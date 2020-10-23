@@ -57,3 +57,28 @@ func QuickSelect(times []time.Duration, k int) (time.Duration, error) {
 	}
 	return doQuickSelect(times, 0, len(times)-1, k-1), nil
 }
+
+// Median finds the median value in a list of times using the quick select algorithm
+// If the list contains an even number of values the median is calculated as the
+// average of the middle two values.
+// Since time.Duration is an int64 representing a duration in nanoseconds the median
+// may lose one nanosecond of precision if the list contains an even number of times
+// and the sum of the middle two values is not divisible by two.
+func Median(times []time.Duration) (median time.Duration, err error) {
+	var a, b time.Duration
+	midpoint := len(times)/2 + 1
+	a, err = QuickSelect(times, midpoint)
+	if err != nil {
+		return
+	}
+	if len(times)%2 == 0 {
+		b, err = QuickSelect(times, midpoint-1)
+		if err != nil {
+			return
+		}
+		median = (a + b) / 2
+	} else {
+		median = a
+	}
+	return
+}

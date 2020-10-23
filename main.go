@@ -36,7 +36,7 @@ func usage() {
 	msg := `
 By default, Jockey sends a single HTTP request to the specified URL and dumps
 the body of the HTTP response to stdout. Use the --profile option to send n
-requests and generate profile report.
+Requests and generate profile report.
 `
 	fmt.Fprint(flag.CommandLine.Output(), msg)
 }
@@ -47,10 +47,10 @@ func main() {
 	targetURL := flag.String(
 		"url",
 		"",
-		"(Required) The URL to send HTTP requests. Defaults to port 80 unless specified by URL:PORT")
+		"(Required) The URL to send HTTP Requests. Defaults to port 80 unless specified by URL:PORT")
 	var profileOpt profileFlag
-	flag.Var(&profileOpt, "profile", "Make n requests to the target URL and print request statistics")
-	//profileOpt := flag.Int("profile", -1, "Make n requests to the target URL and print request statistics")
+	flag.Var(&profileOpt, "profile", "Make n Requests to the target URL and print request statistics")
+	//profileOpt := flag.Int("profile", -1, "Make n Requests to the target URL and print request statistics")
 	flag.Parse()
 
 	if *targetURL == "" {
@@ -67,7 +67,7 @@ func main() {
 	if parsed.Port() != "" {
 		port, _ = strconv.Atoi(parsed.Port())
 	}
-	// Use http for all requests instead of http
+	// Use http for all Requests instead of http
 	if parsed.Scheme == "https" {
 		parsed.Scheme = "http"
 	}

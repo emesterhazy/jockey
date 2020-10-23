@@ -5,106 +5,124 @@ import (
 	"io/ioutil"
 	"jockey/quickselect"
 	"math"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
 )
 
+// profileResults stores the results of the current profile run
 type profileResults struct {
-	requests              uint
-	fastest               time.Duration
-	slowest               time.Duration
-	meanTime              float64       // Float to minimize precision loss since we update on each request
-	medianTime            time.Duration // Avoid re-calculating if the median is up-to-date
-	medianCurrent         bool
-	smallestResponseBytes int
-	largestResponseBytes  int
-	statusCodeCounts      map[int]int
-	requestTimes          []time.Duration
+	Requests              uint
+	Fastest               time.Duration
+	Slowest               time.Duration
+	MeanTime              float64 // Float to minimize precision loss since we update on each request
+	SmallestResponseBytes int
+	LargestResponseBytes  int
+	StatusCodeCounts      map[int]int
+	// Median should be accessed through GetMedian since updating it is an O(n) operation
+	requestTimes  []time.Duration
+	medianTime    time.Duration
+	medianCurrent bool // Avoid re-calculating if the median is up-to-date
 }
 
+// Init initializes a new profileResults struct
 func (pr *profileResults) Init(numExpectedRequests int) {
-	pr.statusCodeCounts = make(map[int]int)
+	pr.StatusCodeCounts = make(map[int]int)
 	pr.requestTimes = make([]time.Duration, 0, numExpectedRequests)
-	pr.fastest = math.MaxInt64
-	pr.smallestResponseBytes = math.MaxInt32
+	pr.Fastest = math.MaxInt64
+	pr.SmallestResponseBytes = math.MaxInt32
 }
 
+// String returns a formatted string representing the current results of the profile
 func (pr *profileResults) String() string {
 	const (
 		minWidth = 0
 		tabWidth = 0
-		padding  = 4
+		padding  = 2
 		padChar  = ' '
 		flags    = 0
 	)
 	var resultsBuilder strings.Builder
 	writer := tabwriter.NewWriter(&resultsBuilder, minWidth, tabWidth, padding, padChar, flags)
 	// Writes to tabwriter and string.Builder should not fail and there is not much
-	// we can do if they do. Thus we just explicitly ignore the errors.
-	_, _ = fmt.Fprintf(writer, "Requests:\t%8v\n", pr.requests)
-	_, _ = fmt.Fprintf(writer, "Fastest request:\t%8v ms\n", pr.fastest.Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Slowest request:\t%8v ms\n", pr.slowest.Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Mean time:\t%8v ms\n", time.Duration(pr.meanTime).Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Median time:\t%8v ms\n", pr.GetMedian().Milliseconds())
-	_, _ = fmt.Fprintf(writer, "Smallest Response:\t%8v bytes\n", pr.smallestResponseBytes)
-	_, _ = fmt.Fprintf(writer, "Largest Response:\t%8v bytes\n", pr.largestResponseBytes)
+	// we can do if they do, so we just explicitly ignore the errors.
+	_, _ = fmt.Fprintf(writer, "Requests:\t%10v\n", pr.Requests)
+	_, _ = fmt.Fprintf(writer, "Fastest request:\t%10v\tms\n", pr.Fastest.Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Slowest request:\t%10v\tms\n", pr.Slowest.Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Mean time:\t%10v\tms\n", time.Duration(pr.MeanTime).Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Median time:\t%10v\tms\n", pr.GetMedian().Milliseconds())
+	_, _ = fmt.Fprintf(writer, "Smallest Response:\t%10v\tbytes\n", pr.SmallestResponseBytes)
+	_, _ = fmt.Fprintf(writer, "Largest Response:\t%10v\tbytes\n", pr.LargestResponseBytes)
+
+	statusCodes := make([]int, 0, len(pr.StatusCodeCounts))
+	for code, _ := range pr.StatusCodeCounts {
+		if code >= 300 {
+			statusCodes = append(statusCodes, code)
+		}
+	}
+	sort.IntSlice.Sort(statusCodes)
+	if len(statusCodes) > 0 {
+		_, _ = fmt.Fprintf(writer, "Error codes returned:\t\n")
+		for _, code := range statusCodes {
+			_, _ = fmt.Fprintf(writer, "%d:\t%8v\n", code, pr.StatusCodeCounts[code])
+		}
+	}
 	_ = writer.Flush()
 	return resultsBuilder.String()
 }
 
+// GetMedian gets the median response time from the current set of test results
+// Quick select is used to determine the median since it runs in O(n) time and
+// Jockey only calculates the median once per run. If Jockey needed to calculate
+// the median more than once this function could be implemented using two priority
+// queues which would require O(n log n) overall but would allow the median to be
+// updated after each run in O(log n) time.
 func (pr *profileResults) GetMedian() time.Duration {
-	times := pr.requestTimes
 	if pr.medianCurrent || len(pr.requestTimes) == 0 {
 		return pr.medianTime
 	}
-	mid := len(pr.requestTimes) / 2
-	a, _ := quickselect.QuickSelect(times, mid)
-	if pr.requests%2 == 0 {
-		b, _ := quickselect.QuickSelect(times, mid+1)
-		pr.medianTime = (a + b) / 2 // We might lose a fraction of a nanosecond but that's ok
-	} else {
-		pr.medianTime = a
-	}
+	median, _ := quickselect.Median(pr.requestTimes)
 	pr.medianCurrent = true
-	return pr.medianTime
+	return median
 }
 
-// Update the statistics to incorporate a new request
+// UpdateStats updates the profile results to incorporate the results of a single test
 func (pr *profileResults) UpdateStats(status int, requestTime time.Duration,
 	bytesTransferred int) {
-	pr.requests++
+	pr.Requests++
 	// Online algorithm to update mean
 	// TODO: Should I not bother with this and just use the values we're
 	//  storing for the median to calculate it in one shot?
-	delta := float64(requestTime) - pr.meanTime
-	pr.meanTime += delta / float64(pr.requests)
+	delta := float64(requestTime) - pr.MeanTime
+	pr.MeanTime += delta / float64(pr.Requests)
 
-	// Update slowest / fastest response
-	if requestTime > pr.slowest {
-		pr.slowest = requestTime
+	// Update Slowest / Fastest response
+	if requestTime > pr.Slowest {
+		pr.Slowest = requestTime
 	}
-	if requestTime < pr.fastest {
-		pr.fastest = requestTime
+	if requestTime < pr.Fastest {
+		pr.Fastest = requestTime
 	}
 	// Update largest / smallest response
-	if bytesTransferred > pr.largestResponseBytes {
-		pr.largestResponseBytes = bytesTransferred
+	if bytesTransferred > pr.LargestResponseBytes {
+		pr.LargestResponseBytes = bytesTransferred
 	}
-	if bytesTransferred < pr.smallestResponseBytes {
-		pr.smallestResponseBytes = bytesTransferred
+	if bytesTransferred < pr.SmallestResponseBytes {
+		pr.SmallestResponseBytes = bytesTransferred
 	}
 	// Need to store all times to calculate median...
 	pr.requestTimes = append(pr.requestTimes, requestTime)
 	pr.medianCurrent = false
 
-	if _, ok := pr.statusCodeCounts[status]; ok {
-		pr.statusCodeCounts[status]++
+	if _, ok := pr.StatusCodeCounts[status]; ok {
+		pr.StatusCodeCounts[status]++
 	} else {
-		pr.statusCodeCounts[status] = 1
+		pr.StatusCodeCounts[status] = 1
 	}
 }
 
+// DoProfile sends a Requests to a
 func DoProfile(repetitions int, host string, path string, port int,
 	headers *map[string]string) *profileResults {
 	results := &profileResults{}
@@ -114,7 +132,7 @@ func DoProfile(repetitions int, host string, path string, port int,
 		start := time.Now()
 		bytesRead, status, err := dumpHTTP(ioutil.Discard, host, path, port, headers)
 		if err != nil {
-			// TODO: Maybe we should track failed requests separately
+			// TODO: Maybe we should track failed Requests separately
 			status = 500
 		}
 		stop := time.Now()

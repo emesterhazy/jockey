@@ -62,3 +62,19 @@ func TestQuickSelect(t *testing.T) {
 		}
 	}
 }
+
+func TestMedianEven(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	numbers := []time.Duration{1, 10, 20, 30}
+	if median, _ := Median(numbers); median != 15 {
+		t.Errorf("median: expected %d got %d\n", 15, median)
+	}
+}
+
+func TestMedianOdd(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	numbers := []time.Duration{1, 10, 20}
+	if median, _ := Median(numbers); median != 10 {
+		t.Errorf("median: expected %d got %d\n", 10, median)
+	}
+}
