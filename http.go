@@ -10,6 +10,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,29 +23,27 @@ const gracefulCleanupTimeout = time.Millisecond * 300
 // an error is returned.
 func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	originalURL := urlRaw
-	// Retry at most once to add scheme
-	for i := 0; i < 2; i++ {
-		parsed, err := url.Parse(urlRaw)
-		if err != nil {
-			if i == 0 {
-				// IP addrs with a port but no scheme return an error - append
-				// default http scheme and make a second attempt to parse
-				urlRaw = "http://" + urlRaw
-				continue
-			}
-			return nil, fmt.Errorf("invalid URL %s\n", originalURL)
-		}
-		if parsed.Scheme == "" || parsed.Hostname() == "" {
-			// url.Parse assumes a valid URL with a scheme
-			// Retry with http if the user did not specify
-			urlRaw = "http://" + urlRaw
-			continue
-		} else if parsed.Scheme != "http" {
-			return nil, fmt.Errorf("incompatible URL scheme: expected http, got %s", parsed.Scheme)
-		}
-		return parsed, nil
+
+	// Jockey only supports the http scheme and returns an error if the user
+	// specifies any other scheme. If no scheme is specified http is assumed.
+	// Using regex here allows us to return a more informative error message.
+	re := regexp.MustCompile("^([a-z]+)://")
+	foundScheme := re.FindStringSubmatch(originalURL)
+	if foundScheme == nil {
+		urlRaw = "http://" + urlRaw
+	} else if foundScheme[1] != "http" {
+		return nil, fmt.Errorf("incompatible URL scheme: expected http, got %s", foundScheme[1])
 	}
-	return nil, fmt.Errorf("invalid URL: %s\n", originalURL)
+
+	parsedURL, err := url.Parse(urlRaw)
+	if err != nil {
+		return nil, err
+	}
+	if parsedURL.Port() == "" {
+		// Assign default HTTP port
+		parsedURL.Host = parsedURL.Host + ":80"
+	}
+	return parsedURL, nil
 }
 
 // dumpResponse makes an http request for a path at the given host and port
