@@ -22,8 +22,8 @@ const gracefulCleanupTimeout = time.Second / 2
 
 // ProfileResults stores the results of the current profile run
 type ProfileResults struct {
-	Requests              uint
-	FailedRequests        uint
+	Requests              int
+	FailedRequests        int
 	Fastest               time.Duration
 	Slowest               time.Duration
 	MeanTime              float64 // Float to minimize precision loss since we update on each request
