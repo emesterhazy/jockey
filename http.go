@@ -12,7 +12,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -118,16 +117,14 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (
 		return
 	}
 	// Parse the Status-Line; response code is the second field
-	statusFields := strings.Fields(statusLine)
-	if len(statusFields) != 3 {
+	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html
+	statusLineRegex := regexp.MustCompile("^(?:HTTP|http)\\/\\d\\.\\d (\\d{3}) [a-zA-Z-]*$")
+	slMatch := statusLineRegex.FindStringSubmatch(statusLine)
+	if slMatch == nil {
 		retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))
 		return
 	}
-	status, err = strconv.Atoi(statusFields[1])
-	if err != nil {
-		retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))
-		return
-	}
+	status, _ = strconv.Atoi(slMatch[1])
 
 	// Skip over the headers without writing them to writer
 	for {
