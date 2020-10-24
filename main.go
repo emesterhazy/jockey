@@ -61,14 +61,14 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	port := 80 // Use port 80 by default
-	if parsed.Port() != "" {
-		port, _ = strconv.Atoi(parsed.Port())
-	}
+	//port := 80 // Use port 80 by default
+	//if parsed.Port() != "" {
+	//	port, _ = strconv.Atoi(parsed.Port())
+	//}
 
 	// Make a single request to the url and dump the response to stdout
 	if !profileOpt.set {
-		_, _, err := dumpResponse(io.Writer(os.Stdout), parsed.Hostname(), parsed.Path, port, nil, nil)
+		_, _, err := MakeHTTPRequest(parsed, io.Writer(os.Stdout), nil, nil)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -77,9 +77,8 @@ func main() {
 	} else if profileOpt.value > 0 {
 		// Run a profile on the url
 		fmt.Printf("Running profile with %d repetitions...", profileOpt.value)
-		results := DoProfile(profileOpt.value, parsed.Hostname(), parsed.Path, port, nil)
-		fmt.Println()
-		fmt.Print(results.String())
+		results := DoProfile(profileOpt.value, parsed, nil)
+		fmt.Printf("\n%s", results.String())
 		os.Exit(0)
 	} else {
 		_, _ = fmt.Fprintln(os.Stderr, "-profile requires a positive number of repetitions")

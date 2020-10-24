@@ -6,6 +6,7 @@ import (
 	"jockey/quickselect"
 	"math"
 	"math/rand"
+	"net/url"
 	"os"
 	"os/signal"
 	"sort"
@@ -16,7 +17,8 @@ import (
 
 // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
 // 3xx codes and below are not considered errors
-const http_error_start = 400
+const HTTPErrorStart = 400
+const gracefulCleanupTimeout = time.Second / 2
 
 // ProfileResults stores the results of the current profile run
 type ProfileResults struct {
@@ -69,7 +71,7 @@ func (pr *ProfileResults) String() string {
 
 	statusCodes := make([]int, 0, len(pr.StatusCodeCounts))
 	for code := range pr.StatusCodeCounts {
-		if code >= http_error_start {
+		if code >= HTTPErrorStart {
 			statusCodes = append(statusCodes, code)
 		}
 	}
@@ -135,7 +137,7 @@ func (pr *ProfileResults) UpdateStats(status int, requestTime time.Duration,
 	} else {
 		pr.StatusCodeCounts[status] = 1
 	}
-	if status >= http_error_start {
+	if status >= HTTPErrorStart {
 		pr.FailedRequests++
 	}
 }
@@ -152,20 +154,20 @@ func (pr *ProfileResults) RecordFailedTransaction() {
 // and records statistics based on the requests. The number of requests sent is
 // specified by the repetitions argument.
 // Returns a ProfileResults struct with the results of the profile run.
-func DoProfile(repetitions int, host string, path string, port int,
-	headers *map[string]string) *ProfileResults {
-
+func DoProfile(repetitions int, url *url.URL, headers *map[string]string) *ProfileResults {
 	// Set up signal handler to terminate early and print stats on sigint
 	sigintChan := make(chan os.Signal, 1)
 	signal.Notify(sigintChan, os.Interrupt)
-	// Defer executes in LIFO order; reset sig handler and then close chan to
-	// unblock go routine listening on it
+	// Defer executes in LIFO order; reset sig handler and then send on chan
+	// and close to unblock Go routine listening on it
 	defer close(sigintChan)
 	defer signal.Reset(os.Interrupt)
-	stopEarly := make(chan struct{})
+	stopEarly := make(chan time.Duration)
 	go func() {
 		defer func() { recover() }()
 		<-sigintChan
+		// Give the current request a chance to wrap up
+		stopEarly <- gracefulCleanupTimeout
 		close(stopEarly)
 	}()
 
@@ -179,7 +181,7 @@ func DoProfile(repetitions int, host string, path string, port int,
 		default:
 		}
 		start := time.Now()
-		bytesRead, status, err := dumpResponse(ioutil.Discard, host, path, port, headers, stopEarly)
+		bytesRead, status, err := MakeHTTPRequest(url, ioutil.Discard, headers, stopEarly)
 		if err != nil {
 			results.RecordFailedTransaction()
 			continue

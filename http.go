@@ -16,7 +16,15 @@ import (
 	"time"
 )
 
-const gracefulCleanupTimeout = time.Millisecond * 300
+func MakeHTTPRequest(requestURL *url.URL, writer io.Writer, headers *map[string]string,
+	abort chan time.Duration) (int, int, error) {
+
+	conn, err := openRequest(requestURL, headers)
+	if err != nil {
+		return 0, -1, err
+	}
+	return readResponse(conn, writer, abort)
+}
 
 // parseFuzzyHttpUrl parses a user supplied URL.
 // If the url contains a URL scheme other than http (i.e. https, wss, etc)
@@ -46,31 +54,35 @@ func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	return parsedURL, nil
 }
 
-// dumpResponse makes an http request for a path at the given host and port
-// and writes the response body to writer. On a successful request dumpResponse
-// returns the HTTP status code and the number of bytes read (including headers),
-// otherwise it returns an error.
-func dumpResponse(writer io.Writer, host string, path string, port int,
-	headers *map[string]string, abort chan struct{}) (int, int, error) {
-
-	conn, err := openRequest(host, path, port, headers)
-	if err != nil {
-		return 0, -1, err
-	}
+// readResponse reads an HTTP response from an established TCP connection and writes
+// the response body to writer. The caller must send a valid HTTP request over conn
+// before passing it to readResponse.
+//
+// Reading from a TCP connection blocks the Go routine executing readResponse
+// until the server closes the connection. The caller can abort long reads at
+// any time (or never) by passing a timeout value over the abort channel.
+// If a timeout is received over abort, readResponse will close conn after the
+// specified timeout. Closing the abort channel closes conn immediately.
+//
+// Returns the HTTP status code of the response and the number of bytes read
+// from the response including headers.
+func readResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (int, int, error) {
 	defer conn.Close()
-
-	// Close the socket to unblock if the caller decides to abort the request
+	// Close the socket to unblock read if the caller decides to abort the request
 	if abort != nil {
-		closeOnReturn := make(chan struct{})
-		defer close(closeOnReturn)
+		cleanupChan := make(chan struct{})
+		defer close(cleanupChan)
 		go func() {
 			select {
-			case <-abort:
-				// Give the connection a small amount of time to finish up
-				timeout := time.NewTimer(gracefulCleanupTimeout)
-				<-timeout.C
+			case gracePeriod, ok := <-abort:
+				if ok {
+					// Give the connection a small amount of time to finish up
+					timeout := time.NewTimer(gracePeriod)
+					<-timeout.C
+				}
 				conn.Close()
-			case <-closeOnReturn:
+			case <-cleanupChan:
+				// Avoid leaking the Go routine if no signal is received
 			}
 		}()
 	}
@@ -111,10 +123,18 @@ func dumpResponse(writer io.Writer, host string, path string, port int,
 	return counts.Count(), status, nil
 }
 
-// Send an HTTP request and return an open TCP connection
-func openRequest(host string, path string, port int, headers *map[string]string) (net.Conn, error) {
+// openRequest opens a TCP connection to the host specified in requestURL and sends
+// a HTTP request corresponding to the request URI in requestURL using a set of
+// default HTTP headers and any headers passed by the caller. Header values passed
+// by the caller take precedence over defaults. By default the server is instructed
+// to close the connection after sending its response.
+//
+// On success, openRequest returns a net.Conn representing the TCP connection.
+// Returns an error if a connection cannot be established and if an error is returned
+// while writing the HTTP request.
+func openRequest(requestURL *url.URL, headers *map[string]string) (net.Conn, error) {
 	reqHeaders := map[string]string{
-		"Host":            fmt.Sprintf("%s:%d", host, port),
+		"Host":            requestURL.Host,
 		"User-Agent":      "Mozilla/5.0",
 		"Accept":          "*/*",
 		"Accept-Encoding": "identity",
@@ -126,17 +146,14 @@ func openRequest(host string, path string, port int, headers *map[string]string)
 			reqHeaders[k] = v
 		}
 	}
-	if path == "" {
-		path = "/"
-	}
-	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
+	conn, err := net.Dial("tcp", requestURL.Host)
 	if err != nil {
 		return nil, err
 	}
-	// Write HTTP request line and headers
+	// Write HTTP request line and headers. Buffered writer will noop after the
+	// first error so we only need to check err on the final Flush()
 	writer := bufio.NewWriter(conn)
-	// Buffered writer will noop after first error so we only need to check on final Flush()
-	_, _ = fmt.Fprintf(writer, "GET %s HTTP/1.1\r\n", path)
+	_, _ = fmt.Fprintf(writer, "GET %s HTTP/1.1\r\n", requestURL.RequestURI())
 	for header, value := range reqHeaders {
 		_, _ = fmt.Fprintf(writer, "%s: %s\r\n", header, value)
 	}
