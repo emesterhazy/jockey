@@ -33,8 +33,19 @@ func usage() {
 	flag.PrintDefaults()
 	msg := `
 By default, Jockey sends a single HTTP request to the specified URL and dumps
-the body of the HTTP response to stdout. Use the --profile option to send n
-Requests and generate profile report.
+the body of the HTTP response to stdout.
+
+If the --profile <n> option is passed, Jockey sends n sequential requests and
+generates a basic statistical report summarizing the outcome. Jockey considers
+any HTTP status code >= 400 as an unsuccessful request and prints a count for
+each unsuccessful error code it receives during the profile run. No status code
+is printed for requests that fail due to broken network connections or invalid
+HTTP responses.
+
+On Unix based systems you can interrupt the profile at any point by sending
+Jockey SIGINT, usually by pressing <Ctrl-C>. Jockey will attempt to quickly
+complete its current request and exit after printing the statistics for any
+completed requests.
 
 Jockey currently only supports HTTP requests and does not follow redirects.
 `
@@ -48,7 +59,7 @@ func main() {
 		"",
 		"(Required) The URL to send HTTP Requests. Defaults to port 80 unless specified in the URL")
 	var profileOpt profileFlag
-	flag.Var(&profileOpt, "profile", "Make n Requests to the target URL and print request statistics")
+	flag.Var(&profileOpt, "profile", "Make n requests to the target URL and print request statistics")
 	flag.Parse()
 
 	if *targetURL == "" {
