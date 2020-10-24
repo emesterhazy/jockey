@@ -60,3 +60,6 @@ times slower than https://worker-demo.evanmesterhazy.com.
 ## Acknowledgement
 Jockey was written based on the requirements of Cloudflare's
 [2020 systems engineering assessment](https://github.com/cloudflare-hiring/cloudflare-2020-systems-engineering-assignment).
+
+## Author
+Evan Mesterhazy - contact at evan.mesterhazy AT gmail.com
