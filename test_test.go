@@ -1,6 +1,11 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"net"
+	"net/textproto"
 	"net/url"
 	"testing"
 )
@@ -53,5 +58,80 @@ func TestParseFuzzyHttpUrl(t *testing.T) {
 			t.Errorf("Error parsing %s: got host %s expected %s\n",
 				testCase.rawURL, got.Host, testCase.expected.Host)
 		}
+	}
+}
+
+// mockServer is a basic HTTP server that sends pre-designated responses.
+// When a client connects, mockServer reads until it encounters a blank line
+// and then sends the next active response back to the client.
+type mockServer struct {
+	responses [][]string
+	listener  *net.TCPListener
+}
+
+// responseLengths calculates the length of the pre-designated responses.
+// This is useful for verifying that the number of bytes read by MakeHTTPRequest
+// is correct.
+func (ms *mockServer) responseLengths() []int {
+	lengths := make([]int, len(ms.responses))
+	for i, response := range ms.responses {
+		for _, line := range response {
+			lengths[i] += len(line)
+		}
+	}
+	return lengths
+}
+
+// start launches the mock server. The caller should run this function as a
+// Go routine to avoid blocking. The caller should close the listener when it's
+// done with the mockServer to avoid leaking its Go routine.
+func (ms *mockServer) start(t *testing.T) {
+	if ms.listener == nil || ms.responses == nil {
+		t.Fatal("uninitialized mock server")
+	}
+	for i := 0; ; i = (i + 1) % len(ms.responses) {
+		clientSock, err := ms.listener.Accept()
+		if err != nil {
+			return
+		}
+		textReader := textproto.NewReader(bufio.NewReader(clientSock))
+		for {
+			line, _ := textReader.ReadLine()
+			if line == "" {
+				break
+			}
+		}
+		for _, line := range ms.responses[i] {
+			fmt.Fprint(clientSock, line)
+		}
+		clientSock.Close()
+	}
+}
+
+func TestMakeHTTPRequest(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal("error listening on localhost")
+	}
+	defer listener.Close()
+	serverResponse := [][]string{{"HTTP/1.1 200 OK\r\n", "\r\n"}}
+	ms := &mockServer{listener: listener.(*net.TCPListener), responses: serverResponse}
+	go ms.start(t)
+
+	parsedURL, err := url.Parse("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatal("error parsing mock server url")
+	}
+	var buf bytes.Buffer
+	status, bytesRead, err := MakeHTTPRequest(parsedURL, &buf, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != 200 {
+		t.Errorf("expected HTTP status 200, got %d\n", status)
+	}
+	expectedLen := ms.responseLengths()[0]
+	if bytesRead != expectedLen {
+		t.Errorf("expected %d bytes read, got %d\n", expectedLen, bytesRead)
 	}
 }
