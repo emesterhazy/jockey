@@ -119,9 +119,13 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (
 	}
 	// Parse the Status-Line; response code is the second field
 	statusFields := strings.Fields(statusLine)
+	if len(statusFields) != 3 {
+		retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))
+		return
+	}
 	status, err = strconv.Atoi(statusFields[1])
 	if err != nil {
-		retErr = errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
+		retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))
 		return
 	}
 
