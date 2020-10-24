@@ -2,7 +2,7 @@
 Jockey is a simple tool for sending HTTP requests and profiling a web server.
 
 ## Build
-Jockey is written in Go and tested with Go 14.4
+Jockey is written in Go and tested with Go 1.13, 1.14, and 1.15
 
 To build, simply run `go build` from within the repository root directory.
 

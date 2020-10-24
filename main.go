@@ -33,7 +33,9 @@ func usage() {
 	flag.PrintDefaults()
 	msg := `
 By default, Jockey sends a single HTTP request to the specified URL and dumps
-the body of the HTTP response to stdout.
+the body of the HTTP response to stdout. 
+
+Jockey supports both HTTP and HTTPS, and does not follow redirects.
 
 If the --profile <n> option is passed, Jockey sends n sequential requests and
 generates a basic statistical report summarizing the outcome. Jockey considers
@@ -46,8 +48,6 @@ On Unix based systems you can interrupt the profile at any point by sending
 Jockey SIGINT, usually by pressing <Ctrl-C>. Jockey will attempt to quickly
 complete its current request and exit after printing the statistics for any
 completed requests.
-
-Jockey currently only supports HTTP requests and does not follow redirects.
 `
 	fmt.Fprint(flag.CommandLine.Output(), msg)
 }

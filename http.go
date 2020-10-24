@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -12,10 +13,11 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
-const httpSchemeRegex = "^([a-z]+)://"
+const urlSchemeRegex = "^([a-zA-Z]+)://"
 
 // See https://tools.ietf.org/html/rfc2616#page-40
 // Note that this excludes the trailing \r\n since it is stripped prior to matching
@@ -36,11 +38,23 @@ func MakeHTTPRequest(requestURL *url.URL, writer io.Writer, headers *map[string]
 	abort chan time.Duration) (status int, bytesRead int, err error) {
 
 	// SendRequest closes conn
+	//var conn net.Conn
+	var tcpConn net.Conn
 	var conn net.Conn
-	conn, err = net.Dial("tcp", requestURL.Host)
+	tcpConn, err = net.Dial("tcp", requestURL.Host)
 	if err != nil {
 		return
 	}
+
+	// Negotiate TLS if required
+	if requestURL.Scheme == "https" {
+		c := tls.Client(tcpConn,
+			&tls.Config{ServerName: requestURL.Hostname(), InsecureSkipVerify: true})
+		conn = net.Conn(c)
+	} else {
+		conn = tcpConn
+	}
+
 	err = SendRequest(conn, requestURL, headers)
 	if err != nil {
 		return
@@ -53,25 +67,36 @@ func MakeHTTPRequest(requestURL *url.URL, writer io.Writer, headers *map[string]
 // Returns an error on invalid URLs or if any scheme other than http is specified.
 func ParseFuzzyHTTPUrl(urlRaw string) (*url.URL, error) {
 	originalURL := urlRaw
+	validSchemes := map[string]bool{"http": true, "https": true}
 
 	// Jockey only supports the http scheme and returns an error if the user
 	// specifies any other scheme. If no scheme is specified http is assumed.
 	// Using regex here allows us to return a more informative error message.
-	re := regexp.MustCompile(httpSchemeRegex)
+	re := regexp.MustCompile(urlSchemeRegex)
 	foundScheme := re.FindStringSubmatch(originalURL)
 	if foundScheme == nil {
 		urlRaw = "http://" + urlRaw
-	} else if foundScheme[1] != "http" {
-		return nil, fmt.Errorf("incompatible URL scheme: expected http, got %s", foundScheme[1])
+	} else if _, ok := validSchemes[strings.ToLower(foundScheme[1])]; !ok {
+		return nil, fmt.Errorf("incompatible URL scheme: expected http or https, got %s",
+			strings.ToLower(foundScheme[1]))
 	}
 
 	parsedURL, err := url.Parse(urlRaw)
 	if err != nil {
 		return nil, err
 	}
+	parsedURL.Scheme = strings.ToLower(parsedURL.Scheme)
 	if parsedURL.Port() == "" {
-		// Assign default HTTP port
-		parsedURL.Host = parsedURL.Host + ":80"
+		// Assign defaults
+		if parsedURL.Scheme == "http" {
+			parsedURL.Host = parsedURL.Host + ":80"
+		} else if parsedURL.Scheme == "https" {
+			parsedURL.Host = parsedURL.Host + ":443"
+		} else {
+			// This is unreachable
+			return nil, fmt.Errorf("incompatible URL scheme: expected http, got %s",
+				parsedURL.Scheme)
+		}
 	}
 	return parsedURL, nil
 }

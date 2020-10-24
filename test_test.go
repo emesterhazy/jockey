@@ -286,17 +286,19 @@ func TestParseFuzzyHttpUrl(t *testing.T) {
 		{"http://google.com", url.URL{Scheme: "http", Host: "google.com:80"}, false},
 		{"google.com:80", url.URL{Scheme: "http", Host: "google.com:80"}, false},
 		{"www.cloudflare.com:8000", url.URL{Scheme: "http", Host: "www.cloudflare.com:8000"}, false},
+		{"HtTp://www.cloudflare.com:80/index.html", url.URL{Scheme: "http", Host: "www.cloudflare.com:80"}, false},
 		{"http://www.cloudflare.com:80/index.html", url.URL{Scheme: "http", Host: "www.cloudflare.com:80"}, false},
 		{"127.0.0.1:80", url.URL{Scheme: "http", Host: "127.0.0.1:80"}, false},
 		{"127.0.0.1", url.URL{Scheme: "http", Host: "127.0.0.1:80"}, false},
 		{"http://127.0.0.1:80", url.URL{Scheme: "http", Host: "127.0.0.1:80"}, false},
 		{"[::1]:80", url.URL{Scheme: "http", Host: "[::1]:80"}, false},
+		{"https://www.google.com", url.URL{Scheme: "https", Host:"www.google.com:443"}, false},
+		{"hTtPs://www.google.com", url.URL{Scheme: "https", Host:"www.google.com:443"}, false},
 		// Test cases that expect an error to be raised
 		{"wss://www.google.com", url.URL{}, true},
 		{"wss://google.com", url.URL{}, true},
 		{"http://www.google.com:http", url.URL{}, true},
 		{"www.google.com:badport", url.URL{}, true},
-		{"https://www.google.com", url.URL{}, true},
 	}
 	for _, testCase := range cases {
 		got, err := ParseFuzzyHTTPUrl(testCase.rawURL)
