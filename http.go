@@ -17,9 +17,9 @@ import (
 )
 
 // MakeHTTPRequest opens a TCP connection to the host specified in requestURL and
-// sends a single HTTP request corresponding to the request URI in requestURL using a
-// set of default HTTP headers and any headers passed by the caller. Header values
-// passed by the caller take precedence over defaults.
+// sends a single HTTP GET request corresponding to the request URI in requestURL
+// using a set of default HTTP headers and any headers passed by the caller. Header
+// values passed by the caller take precedence over defaults.
 //
 // The HTTP response body (omitting headers) is written to writer.
 // Returns the HTTP status code and the number of bytes read.
@@ -83,7 +83,9 @@ func ParseFuzzyHTTPUrl(urlRaw string) (*url.URL, error) {
 //
 // Returns the HTTP status code of the response and the number of bytes read
 // from the response including headers.
-func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (int, int, error) {
+func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (
+	status int, bytesRead int, retErr error) {
+
 	defer conn.Close()
 	// Close the socket to unblock read if the caller decides to abort the request
 	if abort != nil {
@@ -106,26 +108,29 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (in
 
 	// Count the number of bytes read by wrapping the connection in a counter.Reader
 	counts := counter.NewReader(conn)
+	defer func() { bytesRead = counts.Count() }()
+
 	reader := bufio.NewReaderSize(counts, os.Getpagesize()*16)
 	tp := textproto.NewReader(reader)
 	statusLine, err := tp.ReadLine()
 	if err != nil {
-		return 0, counts.Count(), err
+		retErr = err
+		return
+	}
+	// Parse the Status-Line; response code is the second field
+	statusFields := strings.Fields(statusLine)
+	status, err = strconv.Atoi(statusFields[1])
+	if err != nil {
+		retErr = errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
+		return
 	}
 
-	// Parse the Status-Line
-	statusFields := strings.Fields(statusLine)
-	// Response code is the second field in a HTTP Status-Line
-	status, err := strconv.Atoi(statusFields[1])
-	if err != nil {
-		// Bad Status-Line
-		return 0, counts.Count(), errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
-	}
-	// Skip over the rest of the headers without writing them to writer
+	// Skip over the headers without writing them to writer
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
-			return status, counts.Count(), err
+			retErr = err
+			return
 		}
 		if line == "" {
 			break
@@ -135,20 +140,16 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (in
 	// Write the response body to writer
 	_, err = reader.WriteTo(writer)
 	if err != nil && err != io.EOF {
-		return status, counts.Count(), err
+		retErr = err
+		return
 	}
-	return status, counts.Count(), nil
+	return
 }
 
-// SendRequest opens a TCP connection to the host specified in requestURL and sends
-// a HTTP request corresponding to the request URI in requestURL using a set of
-// default HTTP headers and any headers passed by the caller. Header values passed
-// by the caller take precedence over defaults. By default the server is instructed
-// to close the connection after sending its response.
-//
-// On success, SendRequest returns a net.Conn representing the TCP connection.
-// Returns an error if a connection cannot be established and if an error is returned
-// while writing the HTTP request.
+// SendRequest sends a HTTP GET request corresponding to the request URI in requestURL
+// to conn using a set of default HTTP headers and any headers passed by the caller.
+// Header values passed by the caller take precedence over defaults. By default the
+// server is instructed to close the connection after sending its response.
 func SendRequest(conn net.Conn, requestURL *url.URL, headers *map[string]string) error {
 	reqHeaders := map[string]string{
 		"Host":            requestURL.Host,
