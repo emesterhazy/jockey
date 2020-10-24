@@ -57,7 +57,7 @@ func main() {
 	targetURL := flag.String(
 		"url",
 		"",
-		"(Required) The URL to send HTTP requests. Defaults to port 80 unless specified in the URL")
+		"The URL to send HTTP requests. (Required)\nDefaults to http and port 80 unless specified in the URL")
 	var profileOpt profileFlag
 	flag.Var(&profileOpt, "profile", "Make n requests to the target URL and print request statistics")
 	flag.Parse()
