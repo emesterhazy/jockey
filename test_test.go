@@ -8,6 +8,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"testing"
+	"time"
 )
 
 // mockServer is a basic HTTP server that sends pre-designated responses.
@@ -16,6 +17,8 @@ import (
 type mockServer struct {
 	responses [][]string
 	listener  *net.TCPListener
+	// Optional delay between accepting a connection and responding
+	delay time.Duration
 }
 
 // responseLengths calculates the length of the pre-designated responses.
@@ -50,6 +53,10 @@ func (ms *mockServer) start(t *testing.T) {
 				break
 			}
 		}
+		if ms.delay > 0 {
+			timeout := time.NewTimer(ms.delay)
+			<-timeout.C
+		}
 		for _, line := range ms.responses[i] {
 			fmt.Fprint(clientSock, line)
 		}
@@ -81,6 +88,35 @@ func TestMakeHTTPRequest(t *testing.T) {
 	expectedLen := ms.responseLengths()[0]
 	if bytesRead != expectedLen {
 		t.Errorf("expected %d bytes read, got %d\n", expectedLen, bytesRead)
+	}
+}
+
+// Test the ability to abort a blocked / long running request
+func TestAbortHTTPRequest(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal("error listening on localhost")
+	}
+	serverResponse := [][]string{{"HTTP/1.1 200 OK\r\n", "\r\n"}}
+	serverDelay := time.Millisecond * 500
+	ms := &mockServer{listener: listener.(*net.TCPListener), responses: serverResponse, delay: serverDelay}
+
+	parsedURL, err := url.Parse("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatal("error parsing mock server url")
+	}
+	// Set up a timeout to abort the connection
+	abort := make(chan time.Duration)
+	go ms.start(t)
+	go func() {
+		timeout := time.NewTimer(serverDelay / 2)
+		<-timeout.C
+		close(abort)
+	}()
+	_, _, err = MakeHTTPRequest(parsedURL, ioutil.Discard, nil, abort)
+	// Expect an error here
+	if err == nil {
+		t.Errorf("connection did not abort")
 	}
 }
 
