@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/textproto"
 	"net/url"
@@ -122,8 +122,7 @@ func TestMakeHTTPRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal("error parsing mock server url")
 	}
-	var buf bytes.Buffer
-	status, bytesRead, err := MakeHTTPRequest(parsedURL, &buf, nil, nil)
+	status, bytesRead, err := MakeHTTPRequest(parsedURL, ioutil.Discard, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,4 +133,34 @@ func TestMakeHTTPRequest(t *testing.T) {
 	if bytesRead != expectedLen {
 		t.Errorf("expected %d bytes read, got %d\n", expectedLen, bytesRead)
 	}
+}
+
+func TestBadResponseLines(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal("error listening on localhost")
+	}
+	defer listener.Close()
+	serverResponse := [][]string{
+		{"HTTP\r\n", "\r\n"},
+		{"Jockey go fast\r\n", "\r\n"},
+		{"HTTP/1.1 OK 200"},
+		{"NOTHTTP/1.1 200 OK"},
+	}
+	ms := &mockServer{listener: listener.(*net.TCPListener), responses: serverResponse}
+	go ms.start(t)
+
+	parsedURL, err := url.Parse("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatal("error parsing mock server url")
+	}
+	reps := len(serverResponse)
+	results := DoProfile(reps, parsedURL, nil)
+	if results.Requests != reps {
+		t.Errorf("expected %d requests from profile got %d\n", reps, results.Requests)
+	}
+	if results.FailedRequests != reps {
+		t.Errorf("expected %d failed requests from profile got %d\n", reps, results.FailedRequests)
+	}
+
 }
