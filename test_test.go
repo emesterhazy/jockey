@@ -142,6 +142,7 @@ func getRandomStatusLines(n int) ([]string, []int) {
 }
 
 func TestResponseCodes(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatal("error listening on localhost")
