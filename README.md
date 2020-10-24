@@ -13,7 +13,8 @@ Options:
   -profile value
     	Make n requests to the target URL and print request statistics
   -url string
-    	(Required) The URL to send HTTP requests. Defaults to port 80 unless specified in the URL
+    	The URL to send HTTP requests. (Required)
+    	Defaults to port http and 80 unless specified in the URL
 
 By default, Jockey sends a single HTTP request to the specified URL and dumps
 the body of the HTTP response to stdout.
@@ -35,23 +36,26 @@ completed requests.
 
 ## Examples
 ### Test Cases
-All tests were run from NYC over Verizon FIOS and Ethernet. Results appear sorted
-by median time to complete requests from fastest to slowest.
+All tests were run from NYC over Verizon FIOS and Ethernet. Results appear
+sorted by median time to complete requests from fastest to slowest.
 
-![Jockey Test Results](https://www.evanmesterhazy.com/images/jockey_examples.svg)
+![Jockey Test Results](https://www.evanmesterhazy.com/images/jockey_examples.png)
 
 ### Discussion of Results
-In absolute terms, https://worker-demo.evanmesterhazy.com and https://www.evanmesterhazy.com
-exhibited both lower mean and median response times than any other site. Both of these sites are
-served by Cloudflare; https://worker-demo.evanmesterhazy.com is a [Cloudflare Workers](https://workers.cloudflare.com/)
-site, and https://www.evanmesterhazy.com is a static site sitting behind Cloudflare's CDN. The
-fact that the median response for these two sites is so similar (even though the first is twice as large)
-is a strong endorsement of the speed of Cloudflare's workers platform.
+In absolute terms, https://worker-demo.evanmesterhazy.com and
+https://www.evanmesterhazy.com exhibited both lower mean and median response
+times than any other site. Both of these sites are served by Cloudflare;
+https://worker-demo.evanmesterhazy.com is a [Cloudflare Workers](https://workers.cloudflare.com/)
+site, and https://www.evanmesterhazy.com is a static site sitting behind
+Cloudflare's CDN. The fact that the median response for these two sites is so
+similar (even though the first is twice as large) is an indication of the speed
+of Cloudflare's workers platform.
 
-It's worth noting that even though these sites outperformed all others, they are both considerably
-smaller in terms of bytes transferred. https://www.google.com performed third fastest, trailed
-closely by https://www.cloudflare.com which transferred over twice as many bytes. All other sites
-tested were at least two times slower than https://worker-demo.evanmesterhazy.com.
+It's worth noting that even though these sites outperformed all others, they are
+both considerably smaller in terms of bytes transferred. https://www.google.com
+performed third fastest, trailed closely by https://www.cloudflare.com which
+transferred over twice as many bytes. All other sites tested were at least two
+times slower than https://worker-demo.evanmesterhazy.com.
 
 ## Acknowledgement
 Jockey was written based on the requirements of Cloudflare's
