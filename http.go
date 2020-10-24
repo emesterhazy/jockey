@@ -15,6 +15,12 @@ import (
 	"time"
 )
 
+const httpSchemeRegex = "^([a-z]+)://"
+
+// See https://tools.ietf.org/html/rfc2616#page-40
+// Note that this excludes the trailing \r\n since it is stripped prior to matching
+const statusLineRegex = `^(?:HTTP|http)/\d\.\d (\d{3}) (?:[\x21-\x7E\x80-\xFF][\x20-\x7E\x80-\xFF]*)*$`
+
 // MakeHTTPRequest opens a TCP connection to the host specified in requestURL and
 // sends a single HTTP GET request corresponding to the request URI in requestURL
 // using a set of default HTTP headers and any headers passed by the caller. Header
@@ -51,7 +57,7 @@ func ParseFuzzyHTTPUrl(urlRaw string) (*url.URL, error) {
 	// Jockey only supports the http scheme and returns an error if the user
 	// specifies any other scheme. If no scheme is specified http is assumed.
 	// Using regex here allows us to return a more informative error message.
-	re := regexp.MustCompile("^([a-z]+)://")
+	re := regexp.MustCompile(httpSchemeRegex)
 	foundScheme := re.FindStringSubmatch(originalURL)
 	if foundScheme == nil {
 		urlRaw = "http://" + urlRaw
@@ -118,7 +124,7 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (
 	}
 	// Parse the Status-Line; response code is the second field
 	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html
-	statusLineRegex := regexp.MustCompile("^(?:HTTP|http)\\/\\d\\.\\d (\\d{3}) [a-zA-Z-]*$")
+	statusLineRegex := regexp.MustCompile(statusLineRegex)
 	slMatch := statusLineRegex.FindStringSubmatch(statusLine)
 	if slMatch == nil {
 		retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))

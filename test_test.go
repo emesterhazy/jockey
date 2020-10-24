@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/textproto"
 	"net/url"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -64,7 +66,7 @@ func (ms *mockServer) start(t *testing.T) {
 	}
 }
 
-func TestMakeHTTPRequest(t *testing.T) {
+func TestMakeHTTPRequestBasic(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatal("error listening on localhost")
@@ -88,6 +90,93 @@ func TestMakeHTTPRequest(t *testing.T) {
 	expectedLen := ms.responseLengths()[0]
 	if bytesRead != expectedLen {
 		t.Errorf("expected %d bytes read, got %d\n", expectedLen, bytesRead)
+	}
+}
+
+// getRandomStatusLines is a helper function to return a random
+// selection of valid HTTP status lines
+// Returns an array of the complete status lines and a second array of
+// integers representing the status code corresponding to each status line
+func getRandomStatusLines(n int) ([]string, []int) {
+	// Non-exhaustive list of HTTP status codes
+	statusCodes := map[int]string{
+		// Note that 100 Continue is a special case since it instructs the client
+		// to discard it and continue with its request. As such, Jockey continues
+		// reading the server's response and does not include the interim 100 in
+		// its final output
+		200: "OK",
+		201: "Created",
+		202: "Accepted",
+		300: "Multiple Choice",
+		301: "Moved Permanently",
+		302: "Found",
+		303: "See Other",
+		400: "Bad Request",
+		401: "Unauthorized",
+		403: "Forbidden",
+		404: "Not Found",
+		408: "Request Timeout",
+		418: "I'm a teapot",
+		420: "Enhance Your Calm", // Twitter (unofficial)
+		500: "Internal Server Error",
+		504: "Gateway Time-out",
+	}
+	// Add all of the status codes to an array so we can randomly select them
+	// to build the response lines
+	options := make([]int, len(statusCodes))
+	i := 0
+	for code, _ := range statusCodes {
+		options[i] = code
+		i++
+	}
+	responseLines := make([]string, n)
+	responseCodes := make([]int, n)
+	for i = 0; i < n; i++ {
+		ix := rand.Intn(len(statusCodes))
+		code := options[ix]
+		words, _ := statusCodes[code]
+		responseLines[i] = fmt.Sprintf("HTTP/1.1 %d %s\r\n", code, words)
+		responseCodes[i] = code
+	}
+	return responseLines, responseCodes
+}
+
+func TestResponseCodes(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal("error listening on localhost")
+	}
+	defer listener.Close()
+	minResp := 100
+	maxResp := 1000
+	numberOfResponses := rand.Intn(maxResp-minResp+1) + minResp
+	statusLines, statusCodes := getRandomStatusLines(numberOfResponses)
+	// Construct complete responses for each status line
+	serverResponses := make([][]string, len(statusLines))
+	for i := range serverResponses {
+		serverResponses[i] = []string{statusLines[i], "\r\n"}
+	}
+	// Calculate expected status line counts
+	statusCodeCounts := make(map[int]int)
+	for _, code := range statusCodes {
+		if _, ok := statusCodeCounts[code]; ok {
+			statusCodeCounts[code]++
+		} else {
+			statusCodeCounts[code] = 1
+		}
+	}
+
+	ms := &mockServer{listener: listener.(*net.TCPListener), responses: serverResponses}
+	go ms.start(t)
+
+	parsedURL, err := url.Parse("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatal("error parsing mock server url")
+	}
+	responses := DoProfile(numberOfResponses, parsedURL, nil)
+	if !reflect.DeepEqual(responses.StatusCodeCounts, statusCodeCounts) {
+		t.Errorf("mismatch in expected status codes:\ngot:      %v\nexpected: %v\n",
+			responses.StatusCodeCounts, statusCodeCounts)
 	}
 }
 
@@ -149,6 +238,7 @@ func TestBadResponseLines(t *testing.T) {
 	}
 
 }
+
 func TestParseFuzzyHttpUrl(t *testing.T) {
 	// URL test case for ParseFuzzyHTTPUrl
 	type urlCase struct {
