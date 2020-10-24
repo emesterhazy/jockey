@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseFuzzyHttpUrl(t *testing.T) {
-	// URL test case for parseFuzzyHttpUrl
+	// URL test case for ParseFuzzyHTTPUrl
 	type urlCase struct {
 		rawURL      string
 		expected    url.URL
@@ -31,7 +31,7 @@ func TestParseFuzzyHttpUrl(t *testing.T) {
 		{"https://www.google.com", url.URL{}, true},
 	}
 	for _, testCase := range cases {
-		got, err := parseFuzzyHttpUrl(testCase.rawURL)
+		got, err := ParseFuzzyHTTPUrl(testCase.rawURL)
 		if err != nil {
 			if testCase.expectError {
 				continue

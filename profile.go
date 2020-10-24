@@ -181,7 +181,7 @@ func DoProfile(repetitions int, url *url.URL, headers *map[string]string) *Profi
 		default:
 		}
 		start := time.Now()
-		bytesRead, status, err := MakeHTTPRequest(url, ioutil.Discard, headers, stopEarly)
+		status, bytesRead, err := MakeHTTPRequest(url, ioutil.Discard, headers, stopEarly)
 		if err != nil {
 			results.RecordFailedTransaction()
 			continue

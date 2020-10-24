@@ -56,7 +56,7 @@ func main() {
 		os.Exit(1)
 	}
 	// Parse URL supplied by user
-	parsed, err := parseFuzzyHttpUrl(*targetURL)
+	parsed, err := ParseFuzzyHTTPUrl(*targetURL)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -16,20 +16,37 @@ import (
 	"time"
 )
 
+// MakeHTTPRequest opens a TCP connection to the host specified in requestURL and
+// sends a single HTTP request corresponding to the request URI in requestURL using a
+// set of default HTTP headers and any headers passed by the caller. Header values
+// passed by the caller take precedence over defaults.
+//
+// The HTTP response body (omitting headers) is written to writer.
+// Returns the HTTP status code and the number of bytes read.
+//
+// The caller can abort a request by passing an abort channel as an argument. The
+// request will be aborted after an optional timeout if a duration is written to
+// the abort channel or if the channel is closed.
 func MakeHTTPRequest(requestURL *url.URL, writer io.Writer, headers *map[string]string,
-	abort chan time.Duration) (int, int, error) {
+	abort chan time.Duration) (status int, bytesRead int, err error) {
 
-	conn, err := openRequest(requestURL, headers)
+	// SendRequest closes conn
+	var conn net.Conn
+	conn, err = net.Dial("tcp", requestURL.Host)
 	if err != nil {
-		return 0, -1, err
+		return
 	}
-	return readResponse(conn, writer, abort)
+	err = SendRequest(conn, requestURL, headers)
+	if err != nil {
+		return
+	}
+	return ReadResponse(conn, writer, abort)
 }
 
-// parseFuzzyHttpUrl parses a user supplied URL.
-// If the url contains a URL scheme other than http (i.e. https, wss, etc)
-// an error is returned.
-func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
+// ParseFuzzyHTTPUrl parses a user supplied URL and attempts to use the http
+// scheme and port 80 as defaults if the user does not provide a scheme or port.
+// Returns an error on invalid URLs or if any scheme other than http is specified.
+func ParseFuzzyHTTPUrl(urlRaw string) (*url.URL, error) {
 	originalURL := urlRaw
 
 	// Jockey only supports the http scheme and returns an error if the user
@@ -54,19 +71,19 @@ func parseFuzzyHttpUrl(urlRaw string) (*url.URL, error) {
 	return parsedURL, nil
 }
 
-// readResponse reads an HTTP response from an established TCP connection and writes
+// ReadResponse reads an HTTP response from an established TCP connection and writes
 // the response body to writer. The caller must send a valid HTTP request over conn
-// before passing it to readResponse.
+// before passing it to ReadResponse.
 //
-// Reading from a TCP connection blocks the Go routine executing readResponse
+// Reading from a TCP connection blocks the Go routine executing ReadResponse
 // until the server closes the connection. The caller can abort long reads at
 // any time (or never) by passing a timeout value over the abort channel.
-// If a timeout is received over abort, readResponse will close conn after the
+// If a timeout is received over abort, ReadResponse will close conn after the
 // specified timeout. Closing the abort channel closes conn immediately.
 //
 // Returns the HTTP status code of the response and the number of bytes read
 // from the response including headers.
-func readResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (int, int, error) {
+func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (int, int, error) {
 	defer conn.Close()
 	// Close the socket to unblock read if the caller decides to abort the request
 	if abort != nil {
@@ -93,7 +110,7 @@ func readResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (in
 	tp := textproto.NewReader(reader)
 	statusLine, err := tp.ReadLine()
 	if err != nil {
-		return counts.Count(), -1, err
+		return 0, counts.Count(), err
 	}
 
 	// Parse the Status-Line
@@ -102,13 +119,13 @@ func readResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (in
 	status, err := strconv.Atoi(statusFields[1])
 	if err != nil {
 		// Bad Status-Line
-		return counts.Count(), -1, errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
+		return 0, counts.Count(), errors.New(fmt.Sprintf("bad status line %s\n", statusLine))
 	}
 	// Skip over the rest of the headers without writing them to writer
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
-			return counts.Count(), status, err
+			return status, counts.Count(), err
 		}
 		if line == "" {
 			break
@@ -118,21 +135,21 @@ func readResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (in
 	// Write the response body to writer
 	_, err = reader.WriteTo(writer)
 	if err != nil && err != io.EOF {
-		return counts.Count(), status, err
+		return status, counts.Count(), err
 	}
-	return counts.Count(), status, nil
+	return status, counts.Count(), nil
 }
 
-// openRequest opens a TCP connection to the host specified in requestURL and sends
+// SendRequest opens a TCP connection to the host specified in requestURL and sends
 // a HTTP request corresponding to the request URI in requestURL using a set of
 // default HTTP headers and any headers passed by the caller. Header values passed
 // by the caller take precedence over defaults. By default the server is instructed
 // to close the connection after sending its response.
 //
-// On success, openRequest returns a net.Conn representing the TCP connection.
+// On success, SendRequest returns a net.Conn representing the TCP connection.
 // Returns an error if a connection cannot be established and if an error is returned
 // while writing the HTTP request.
-func openRequest(requestURL *url.URL, headers *map[string]string) (net.Conn, error) {
+func SendRequest(conn net.Conn, requestURL *url.URL, headers *map[string]string) error {
 	reqHeaders := map[string]string{
 		"Host":            requestURL.Host,
 		"User-Agent":      "Mozilla/5.0",
@@ -146,10 +163,6 @@ func openRequest(requestURL *url.URL, headers *map[string]string) (net.Conn, err
 			reqHeaders[k] = v
 		}
 	}
-	conn, err := net.Dial("tcp", requestURL.Host)
-	if err != nil {
-		return nil, err
-	}
 	// Write HTTP request line and headers. Buffered writer will noop after the
 	// first error so we only need to check err on the final Flush()
 	writer := bufio.NewWriter(conn)
@@ -158,10 +171,10 @@ func openRequest(requestURL *url.URL, headers *map[string]string) (net.Conn, err
 		_, _ = fmt.Fprintf(writer, "%s: %s\r\n", header, value)
 	}
 	_, _ = fmt.Fprint(writer, "\r\n")
-	err = writer.Flush()
+	err := writer.Flush()
 	if err != nil {
 		conn.Close()
-		return nil, err
+		return err
 	}
-	return conn, nil
+	return nil
 }
