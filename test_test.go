@@ -239,6 +239,40 @@ func TestBadResponseLines(t *testing.T) {
 
 }
 
+// Jockey should discard interim 100 Continue status codes and continue
+// with its request
+func Test100Continue(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal("error listening on localhost")
+	}
+	defer listener.Close()
+	serverResponse := [][]string{
+		{"HTTP/1.1 100 Continue\r\n", "HTTP/1.1 200 OK\r\n", "\r\n"},
+		{"HTTP/1.1 100 Continue\r\n", "HTTP/1.1 100 Continue\r\n", "HTTP/1.1 200 OK\r\n", "\r\n"},
+	}
+	ms := &mockServer{listener: listener.(*net.TCPListener), responses: serverResponse}
+	go ms.start(t)
+
+	parsedURL, err := url.Parse("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatal("error parsing mock server url")
+	}
+	for i := range serverResponse {
+		status, bytesRead, err := MakeHTTPRequest(parsedURL, ioutil.Discard, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status != 200 {
+			t.Errorf("expected HTTP status 200, got %d\n", status)
+		}
+		expectedLen := ms.responseLengths()[i]
+		if bytesRead != expectedLen {
+			t.Errorf("expected %d bytes read, got %d\n", expectedLen, bytesRead)
+		}
+	}
+}
+
 func TestParseFuzzyHttpUrl(t *testing.T) {
 	// URL test case for ParseFuzzyHTTPUrl
 	type urlCase struct {

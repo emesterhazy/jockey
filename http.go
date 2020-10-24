@@ -117,21 +117,27 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (
 
 	reader := bufio.NewReaderSize(counts, os.Getpagesize()*16)
 	tp := textproto.NewReader(reader)
-	statusLine, err := tp.ReadLine()
-	if err != nil {
-		retErr = err
-		return
-	}
 	// Parse the Status-Line; response code is the second field
 	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html
 	statusLineRegex := regexp.MustCompile(statusLineRegex)
-	slMatch := statusLineRegex.FindStringSubmatch(statusLine)
-	if slMatch == nil {
-		retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))
-		return
+	// Continue waiting for final status if interim status 100 is received
+	// See: https://tools.ietf.org/html/rfc2616#section-10.1.1
+	for {
+		statusLine, err := tp.ReadLine()
+		if err != nil {
+			retErr = err
+			return
+		}
+		slMatch := statusLineRegex.FindStringSubmatch(statusLine)
+		if slMatch == nil {
+			retErr = errors.New(fmt.Sprintf("bad status line: %s\n", statusLine))
+			return
+		}
+		status, _ = strconv.Atoi(slMatch[1])
+		if status != 100 {
+			break
+		}
 	}
-	status, _ = strconv.Atoi(slMatch[1])
-
 	// Skip over the headers without writing them to writer
 	for {
 		line, err := tp.ReadLine()
@@ -145,7 +151,7 @@ func ReadResponse(conn net.Conn, writer io.Writer, abort chan time.Duration) (
 	}
 
 	// Write the response body to writer
-	_, err = reader.WriteTo(writer)
+	_, err := reader.WriteTo(writer)
 	if err != nil && err != io.EOF {
 		retErr = err
 		return
